@@ -1,0 +1,33 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Optional: editor files
+*.swp
+*.swo
+.idea/
+.vscode/
+changes.md
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Executables
+*.exe
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# db
+*.db

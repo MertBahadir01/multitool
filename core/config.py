@@ -1,0 +1,18 @@
+"""Application configuration constants."""
+
+APP_NAME = "MultiTool Studio"
+APP_VERSION = "1.0.0"
+DB_PATH = "multitool_studio.db"
+CLIPBOARD_CLEAR_DELAY = 30  # seconds
+AUTO_LOCK_MINUTES = 10
+
+# Colors
+BG_COLOR = "#1E1E1E"
+PANEL_COLOR = "#252526"
+ACCENT_COLOR = "#00BFA5"
+TEXT_COLOR = "#CCCCCC"
+TEXT_DIM = "#888888"
+BORDER_COLOR = "#3E3E3E"
+DANGER_COLOR = "#F44336"
+SUCCESS_COLOR = "#4CAF50"
+WARNING_COLOR = "#FF9800"
