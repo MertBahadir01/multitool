@@ -10,7 +10,7 @@ class FetchWorker(QThread):
     def __init__(self, ip): super().__init__(); self.ip = ip
     def run(self):
         try:
-            url = f"https://ipapi.co/{self.ip}/json/" if self.ip else "https://ipapi.co/json/"
+            url = f"http://ip-api.com/json/{self.ip}" if self.ip else "http://ip-api.com/json/"
             r = requests.get(url, timeout=10)
             self.result.emit(r.json())
         except Exception as e:
@@ -52,13 +52,16 @@ class IPInfoTool(QWidget):
         self._worker.start()
 
     def _on_result(self, data):
-        if "error" in data:
-            self.result.setPlainText(f"Error: {data.get('reason', 'Unknown')}")
+        if data.get("status") == "fail":
+            self.result.setPlainText(f"Error: {data.get('message','Unknown')}")
             return
         lines = []
-        fields = [("IP", "ip"), ("City", "city"), ("Region", "region"), ("Country", "country_name"),
-                  ("Postal", "postal"), ("Latitude", "latitude"), ("Longitude", "longitude"),
-                  ("Timezone", "timezone"), ("ISP", "org"), ("ASN", "asn")]
+        fields = [
+                    ("IP", "query"), ("City", "city"), ("Region", "regionName"),
+                    ("Country", "country"), ("Postal", "zip"), ("Latitude", "lat"),
+                    ("Longitude", "lon"), ("Timezone", "timezone"), ("ISP", "isp"),
+                    ("Org", "org"), ("ASN", "as")
+                ]
         for label, key in fields:
             val = data.get(key, "N/A")
             lines.append(f"{label:<15}: {val}")

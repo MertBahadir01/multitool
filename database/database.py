@@ -48,6 +48,56 @@ def init_database():
         )
     """)
 
+    # ── Notebook ──────────────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS notebook_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, name),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS notebook_people (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(category_id, name),
+            FOREIGN KEY (category_id) REFERENCES notebook_categories(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS notebook_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            person_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            encrypted_content BLOB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (person_id) REFERENCES notebook_people(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Calculator history ────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS calculator_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            expression TEXT NOT NULL,
+            result TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 

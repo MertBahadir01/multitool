@@ -21,6 +21,8 @@ TOOL_CARDS = {
         ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
         ("🎲", "Random Number", "Generate random numbers", "random_number"),
         ("🔗", "UUID Generator", "Generate UUIDs", "uuid_generator"),
+        ("📓", "Notebook", "Encrypted notes per person", "notebook"),
+        ("🔢", "Calculator", "Calculator with history", "calculator"),
     ],
     "file": [
         ("#️⃣", "File Hash", "MD5/SHA hash of files", "file_hash"),

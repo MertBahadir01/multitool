@@ -41,6 +41,8 @@ def _register_tools():
         ("face_detector", "tools.face_detector", "FaceDetectorTool"),
         ("object_detector", "tools.object_detector", "ObjectDetectorTool"),
         ("password_vault", "tools.password_vault", "PasswordVaultTool"),
+        ("notebook",   "tools.notebook",   "NotebookTool"),
+        ("calculator", "tools.calculator", "CalculatorTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:
