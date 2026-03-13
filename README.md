@@ -202,7 +202,6 @@ pyinstaller build.spec --clean
 # Output: dist/MultiToolStudio/MultiToolStudio.exe
 ```
 
-Or run `build_windows.bat` directly.
 
 ---
 
