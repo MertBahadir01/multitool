@@ -41,8 +41,16 @@ def _register_tools():
         ("face_detector", "tools.face_detector", "FaceDetectorTool"),
         ("object_detector", "tools.object_detector", "ObjectDetectorTool"),
         ("password_vault", "tools.password_vault", "PasswordVaultTool"),
-        ("notebook",   "tools.notebook",   "NotebookTool"),
-        ("calculator", "tools.calculator", "CalculatorTool"),
+        ("notebook",           "tools.notebook",          "NotebookTool"),
+        ("calculator",         "tools.calculator",        "CalculatorTool"),
+        ("study_lessons",      "tools.study_lessons",     "StudyLessonsTool"),
+        ("study_exams",        "tools.study_exams",       "StudyExamsTool"),
+        ("study_tests",        "tools.study_tests",       "StudyTestsTool"),
+        ("study_progress",     "tools.study_progress",    "StudyProgressTool"),
+        ("study_flashcards",   "tools.study_flashcards",  "StudyFlashcardsTool"),
+        ("study_timer",        "tools.study_timer",       "StudyTimerTool"),
+        ("study_resources",    "tools.study_resources",   "StudyResourcesTool"),
+        ("study_goals",        "tools.study_goals",       "StudyGoalsTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:

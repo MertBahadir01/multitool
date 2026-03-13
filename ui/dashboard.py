@@ -15,13 +15,23 @@ TOOL_CARDS = {
         ("👤", "Face Detector", "Detect faces in images", "face_detector"),
         ("📦", "Object Detector", "Detect objects in images", "object_detector"),
     ],
+    "study": [
+        ("📚", "Lessons",          "Organize lessons & resources",      "study_lessons"),
+        ("📊", "Exam Logging",     "Log TYT/AYT scores per subject",    "study_exams"),
+        ("📝", "Test Capture",     "Capture questions with photos",      "study_tests"),
+        ("📈", "Progress Tracker", "Charts for exam & study progress",  "study_progress"),
+        ("🃏", "Flashcards",       "Spaced repetition flashcards",      "study_flashcards"),
+        ("⏱️", "Study Timer",      "Pomodoro timer with logging",        "study_timer"),
+        ("📖", "Resource Library", "Books, PDFs, links & videos",       "study_resources"),
+        ("🎯", "Goals & Reminders","Set goals and track deadlines",      "study_goals"),
+    ],
     "utility": [
+        ("📓", "Notebook", "Encrypted notes per person", "notebook"),
         ("📱", "QR Generator", "Generate QR codes from text", "qr_generator"),
         ("📷", "QR Scanner", "Decode QR codes from images", "qr_scanner"),
         ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
         ("🎲", "Random Number", "Generate random numbers", "random_number"),
         ("🔗", "UUID Generator", "Generate UUIDs", "uuid_generator"),
-        ("📓", "Notebook", "Encrypted notes per person", "notebook"),
         ("🔢", "Calculator", "Calculator with history", "calculator"),
     ],
     "file": [
@@ -186,12 +196,14 @@ class CategoryView(QWidget):
         tools = TOOL_CARDS.get(self.category, [])
         cat_names = {
             "ai": "🤖 AI Tools",
+            "study": "📚 Study Tools",
             "utility": "🔧 Utility Tools",
             "file": "📁 File Tools",
             "media": "🎬 Media Tools",
             "network": "🌐 Networking Tools",
             "developer": "💻 Developer Tools",
             "security": "🔒 Security Tools",
+            
         }
         header = QLabel(cat_names.get(self.category, "Tools"))
         header.setFont(QFont("Segoe UI", 20, QFont.Bold))

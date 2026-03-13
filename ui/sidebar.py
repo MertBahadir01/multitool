@@ -8,12 +8,14 @@ from PySide6.QtGui import QFont
 CATEGORIES = [
     ("🏠", "Dashboard", "dashboard"),
     ("🤖", "AI Tools", "ai"),
+    ("📚", "Study Tools", "study"),
     ("🔧", "Utility Tools", "utility"),
     ("📁", "File Tools", "file"),
     ("🎬", "Media Tools", "media"),
     ("🌐", "Networking", "network"),
     ("💻", "Developer Tools", "developer"),
     ("🔒", "Security Tools", "security"),
+
 ]
 
 
