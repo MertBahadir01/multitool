@@ -27,6 +27,11 @@ TOOL_CARDS = {
     ],
     "utility": [
         ("📓", "Notebook", "Encrypted notes per person", "notebook"),
+        ("📒", "Quick Notes",     "Fast notes with tags and images",    "notes_app"),
+        ("🕐", "Clock",           "World clocks, stopwatch & alarms",   "clock_app"),
+        ("📐", "Unit Converter",  "Length, weight, temp, currency…",    "unit_converter"),
+        ("🗂️", "File Manager",    "Browse, duplicate scan & cleaner",  "file_manager"),
+        ("🎬", "Screen Recorder", "Record screen & export as GIF",      "screen_recorder"),
         ("📱", "QR Generator", "Generate QR codes from text", "qr_generator"),
         ("📷", "QR Scanner", "Decode QR codes from images", "qr_scanner"),
         ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
