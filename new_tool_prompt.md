@@ -27,83 +27,174 @@ I'm giving you a zip of my PySide6 desktop app called MultiTool Studio. Before w
 7. Deliver: the complete new tool folder(s) ready to drop into `tools/`, plus a single `CHANGES_NEEDED.txt` listing only the lines to add in `main_window.py`, `dashboard.py`, and `database.py`
 8. Never rewrite existing files in full — only show the exact lines to add
 
-**Study Section Integration (for study-related tools):**
-
-When adding a new Study tool (like Lessons, Exams, Flashcards, Timer, etc.), follow this standard structure:
-
 ---
 
+# Category Tool Integration (for any tool category)
+
+When adding a new **tool category** (Study, Games, Security, Utilities, etc.), follow this standard structure.
+
 ══════════════════════════════════════════════════════════════════════════
-CHANGES NEEDED — Study Section
+CHANGES NEEDED — Category Tool Section
 3 existing files to edit. Everything else is new folders to drop in.
 ══════════════════════════════════════════════════════════════════════════
 
-── 1. database/database.py ───────────────────────────────────────────────
-Paste the full contents of  `database_additions.py` inside `init_database()`,
-after the `calculator_history` block, before `conn.commit()`.
-(12 `c.execute` blocks — one per table)
+---
 
-── 2. ui/main_window.py ──────────────────────────────────────────────────
-Inside `_register_tools()`, add these 8 lines to `tool_modules` list:
+## ── 1. `database/database.py` ───────────────────────────────────────────
 
+Paste the **table creation blocks** for the new tools inside `init_database()`.
+
+Place them **after the last existing tool block** and **before `conn.commit()`**.
+
+Each tool may require its own table.
+
+Example pattern:
+
+```python
+c.execute("""
+CREATE TABLE IF NOT EXISTS <tool_table_name> (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
 ```
-    ("study_lessons",   "tools.study_lessons",   "StudyLessonsTool"),
-    ("study_exams",     "tools.study_exams",     "StudyExamsTool"),
-    ("study_tests",     "tools.study_tests",     "StudyTestsTool"),
-    ("study_progress",  "tools.study_progress",  "StudyProgressTool"),
-    ("study_flashcards","tools.study_flashcards","StudyFlashcardsTool"),
-    ("study_timer",     "tools.study_timer",     "StudyTimerTool"),
-    ("study_resources", "tools.study_resources", "StudyResourcesTool"),
-    ("study_goals",     "tools.study_goals",     "StudyGoalsTool"),
+
+Multiple tables may be added depending on the tool.
+
+---
+
+## ── 2. `ui/main_window.py` ──────────────────────────────────────────────
+
+Inside `_register_tools()`, add the new tools to the `tool_modules` list.
+
+Format:
+
+```python
+("<tool_id>", "<tools.module_path>", "<ToolClassName>"),
 ```
 
-── 3a. ui/dashboard.py — add TOOL_CARDS entry ────────────────────────────
-Add this new key to the `TOOL_CARDS` dict:
+Example:
 
+```python
+("game_snake",      "tools.game_snake",      "SnakeGameTool"),
+("game_sudoku",     "tools.game_sudoku",     "SudokuGameTool"),
+("security_hash",   "tools.security_hash",   "HashTool"),
+("utility_qr",      "tools.utility_qr",      "QRGeneratorTool"),
 ```
-"study": [
-    ("📚", "Lessons",          "Organize lessons & resources",      "study_lessons"),
-    ("📊", "Exam Logging",     "Log TYT/AYT scores per subject",    "study_exams"),
-    ("📝", "Test Capture",      "Capture questions with photos",      "study_tests"),
-    ("📈", "Progress Tracker", "Charts for exam & study progress",  "study_progress"),
-    ("🃏", "Flashcards",       "Spaced repetition flashcards",      "study_flashcards"),
-    ("⏱️", "Study Timer",      "Pomodoro timer with logging",        "study_timer"),
-    ("📖", "Resource Library", "Books, PDFs, links & videos",       "study_resources"),
-    ("🎯", "Goals & Reminders","Set goals and track deadlines",      "study_goals"),
+
+Each entry registers a tool so the app can dynamically load it.
+
+---
+
+## ── 3a. `ui/dashboard.py` — add TOOL_CARDS entry ────────────────────────
+
+Add a new key to the `TOOL_CARDS` dictionary for the category.
+
+Format:
+
+```python
+"<category_key>": [
+    ("icon", "Tool Name", "Short description", "tool_id"),
 ],
 ```
 
-── 3b. ui/dashboard.py — update cat_names in CategoryView._build_ui ──────
-Add this line to the `cat_names` dict:
+Example:
 
-```
-        "study": "📚 Study Tools",
+```python
+"games": [
+    ("🐍", "Snake",   "Classic snake arcade game", "game_snake"),
+    ("🧩", "Sudoku",  "Play and solve Sudoku puzzles", "game_sudoku"),
+],
 ```
 
-── 4. ui/sidebar.py ──────────────────────────────────────────────────────
-Add this line to the `CATEGORIES` list (before or after the security entry):
+---
 
+## ── 3b. `ui/dashboard.py` — update `cat_names` in `CategoryView._build_ui` ─
+
+Add the category display name.
+
+Example:
+
+```python
+"games": "🎮 Games",
+"study": "📚 Study Tools",
+"security": "🔐 Security Tools",
 ```
+
+---
+
+## ── 4. `ui/sidebar.py` ──────────────────────────────────────────────────
+
+Add the category entry to the `CATEGORIES` list.
+
+Format:
+
+```python
+("icon", "Category Name", "category_key"),
+```
+
+Example:
+
+```python
+("🎮", "Games", "games"),
 ("📚", "Study Tools", "study"),
+("🔐", "Security Tools", "security"),
+("🛠", "Utilities", "utilities"),
 ```
 
-── New folders (drop into tools/) ────────────────────────────────────────
-tools/study_lessons/         ← contains `study_service.py` (shared by ALL tools)
-tools/study_exams/
-tools/study_tests/
-tools/study_progress/
-tools/study_flashcards/
-tools/study_timer/
-tools/study_resources/
-tools/study_goals/
+---
 
-`study_service.py` lives in `tools/study_lessons/` and is imported by all other study tools as:
+# New folders (drop into `tools/`)
+
+Each tool lives in its own folder.
 
 ```
-from tools.study_lessons.study_service import <ServiceClass>
+tools/
+ ├── game_snake/
+ ├── game_sudoku/
+ ├── security_hash/
+ ├── utility_qr/
+ ├── study_flashcards/
+```
+
+Each folder should contain the tool implementation.
+
+Example:
+
+```
+tools/game_snake/
+    tool.py
+    game_logic.py
+    assets/
+```
+
+---
+
+# Optional Shared Service
+
+If multiple tools share logic, create a **service file** inside one tool folder.
+
+Example:
+
+```
+tools/study_lessons/tool_service.py
+```
+
+Other tools can import it like:
+
+```python
+from tools.study_lessons.tool_service import ServiceClass
 ```
 
 No changes needed to any other existing file.
+
+---
+
+✅ Result:
+This structure allows the multitool app to support **unlimited categories and tools** with minimal core modifications.
+
+
 ══════════════════════════════════════════════════════════════════════════
 
 **I want to add:** [DESCRIBE YOUR TOOL HERE]
