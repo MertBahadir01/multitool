@@ -9,12 +9,12 @@ from PySide6.QtGui import QFont
 
 
 TOOL_CARDS = {
-    "ai": [
-        ("🧠", "Face Reader", "Detect emotions from webcam", "face_reader"),
-        ("🎂", "Age Estimator", "Estimate age from face", "face_age"),
-        ("👤", "Face Detector", "Detect faces in images", "face_detector"),
-        ("📦", "Object Detector", "Detect objects in images", "object_detector"),
-    ],
+#    "ai": [
+#        ("🧠", "Face Reader", "Detect emotions from webcam", "face_reader"),
+#        ("🎂", "Age Estimator", "Estimate age from face", "face_age"),
+#        ("👤", "Face Detector", "Detect faces in images", "face_detector"),
+#        ("📦", "Object Detector", "Detect objects in images", "object_detector"),
+#    ],
     "study": [
         ("📚", "Lessons",          "Organize lessons & resources",      "study_lessons"),
         ("📊", "Exam Logging",     "Log TYT/AYT scores per subject",    "study_exams"),
@@ -59,6 +59,7 @@ TOOL_CARDS = {
         ("📡", "HTTP Tester", "Send HTTP requests", "http_tester"),
     ],
     "developer": [
+        ("🖼️", "Image ↔ Base64", "Convert images to Base64 and back", "image_base64"),
         ("📋", "JSON Formatter", "Format and validate JSON", "json_formatter"),
         ("🔄", "Base64", "Encode/decode Base64", "base64_tool"),
         ("🕒", "Timestamp", "Convert Unix timestamps", "timestamp_converter"),

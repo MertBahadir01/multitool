@@ -36,10 +36,10 @@ def _register_tools():
         ("json_formatter", "tools.json_formatter", "JSONFormatterTool"),
         ("base64_tool", "tools.base64_tool", "Base64Tool"),
         ("timestamp_converter", "tools.timestamp_converter", "TimestampConverterTool"),
-        ("face_reader", "tools.face_reader", "FaceReaderTool"),
-        ("face_age", "tools.face_age", "FaceAgeTool"),
-        ("face_detector", "tools.face_detector", "FaceDetectorTool"),
-        ("object_detector", "tools.object_detector", "ObjectDetectorTool"),
+#        ("face_reader", "tools.face_reader", "FaceReaderTool"),
+#        ("face_age", "tools.face_age", "FaceAgeTool"),
+#        ("face_detector", "tools.face_detector", "FaceDetectorTool"),
+#        ("object_detector", "tools.object_detector", "ObjectDetectorTool"),
         ("password_vault", "tools.password_vault", "PasswordVaultTool"),
         ("notebook",           "tools.notebook",          "NotebookTool"),
         ("calculator",         "tools.calculator",        "CalculatorTool"),
@@ -59,6 +59,7 @@ def _register_tools():
         ("exam_detail",    "tools.exam_detail",    "ExamDetailTool"),
         ("exam_progress",  "tools.exam_progress",  "ExamProgressTool"),
         ("task_manager", "tools.task_manager", "TaskManagerTool"),
+        ("image_base64", "tools.image_base64", "ImageBase64Tool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:
