@@ -60,6 +60,13 @@ def _register_tools():
         ("exam_progress",  "tools.exam_progress",  "ExamProgressTool"),
         ("task_manager", "tools.task_manager", "TaskManagerTool"),
         ("image_base64", "tools.image_base64", "ImageBase64Tool"),
+        ("sudoku",        "tools.sudoku",         "SudokuTool"),
+        ("snake",         "tools.snake",           "SnakeTool"),
+        ("flappy_bird",   "tools.flappy_bird",     "FlappyBirdTool"),
+        ("tic_tac_toe",   "tools.tic_tac_toe",     "TicTacToeTool"),
+        ("minesweeper",   "tools.minesweeper",     "MinesweeperTool"),
+        ("tetris",        "tools.tetris",           "TetrisTool"),
+        ("reaction_time", "tools.reaction_time",   "ReactionTimeTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:

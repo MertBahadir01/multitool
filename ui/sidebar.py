@@ -9,6 +9,7 @@ CATEGORIES = [
     ("🏠", "Dashboard", "dashboard"),
 ##    ("🤖", "AI Tools", "ai"),
     ("📚", "Study Tools", "study"),
+    ("🎮", "Games", "games"),
     ("🔧", "Utility Tools", "utility"),
     ("📁", "File Tools", "file"),
     ("🎬", "Media Tools", "media"),

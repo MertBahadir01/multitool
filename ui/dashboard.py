@@ -27,6 +27,15 @@ TOOL_CARDS = {
         ("📋", "Exam Detail",   "TYT/AYT detaylı sınav girişi",        "exam_detail"),
         ("📈", "Exam Progress", "Bölüm/konu bazlı ilerleme grafikleri", "exam_progress"),
     ],
+    "games": [
+        ("🔢", "Sudoku",        "Random puzzles — 4x4 to 16x16",    "sudoku"),
+        ("🐍", "Snake",         "Classic snake with speed scaling",   "snake"),
+        ("🐦", "Flappy Bird",   "Tap or Space to fly past pipes",     "flappy_bird"),
+        ("✖️",  "Tic Tac Toe",  "Player vs Player or vs AI",          "tic_tac_toe"),
+        ("💣", "Minesweeper",   "Easy / Medium / Hard mine grid",     "minesweeper"),
+        ("🟦", "Tetris",        "Falling blocks, levels and scoring", "tetris"),
+        ("⚡", "Reaction Time", "Measure your reaction in ms",        "reaction_time"),
+    ],
     "utility": [
         ("📓", "Notebook", "Encrypted notes per person", "notebook"),
         ("📒", "Quick Notes",     "Fast notes with tags and images",    "notes_app"),
@@ -206,6 +215,7 @@ class CategoryView(QWidget):
         cat_names = {
             "ai": "🤖 AI Tools",
             "study": "📚 Study Tools",
+            "games": "🎮 Games",
             "utility": "🔧 Utility Tools",
             "file": "📁 File Tools",
             "media": "🎬 Media Tools",

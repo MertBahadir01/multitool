@@ -99,7 +99,7 @@ def init_database():
             FOREIGN KEY (user_id)  REFERENCES users(id)
         )
     """)
-    
+
     # ── Calculator history ────────────────────────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS calculator_history (
@@ -405,6 +405,21 @@ def init_database():
             FOREIGN KEY (user_id)  REFERENCES users(id)
         )
     """)
+
+
+    # ── Game Scores (shared leaderboard) ─────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS game_scores (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id    TEXT    NOT NULL,
+            user_id    INTEGER NOT NULL,
+            username   TEXT    NOT NULL,
+            score      INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_game_scores ON game_scores(game_id, score DESC)")
 
     conn.commit()
     conn.close()
