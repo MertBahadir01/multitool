@@ -86,6 +86,20 @@ def init_database():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS notebook_note_images (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            note_id          INTEGER NOT NULL,
+            user_id          INTEGER NOT NULL,
+            filename         TEXT    NOT NULL DEFAULT '',
+            mime_type        TEXT    NOT NULL DEFAULT 'image/png',
+            encrypted_image  BLOB    NOT NULL,
+            created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (note_id)  REFERENCES notebook_notes(id),
+            FOREIGN KEY (user_id)  REFERENCES users(id)
+        )
+    """)
+    
     # ── Calculator history ────────────────────────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS calculator_history (

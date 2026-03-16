@@ -91,14 +91,14 @@ class ImageThumb(QLabel):
     def contextMenuEvent(self, event):
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
-        open_act   = menu.addAction("🔍 Tam ekran aç")
-        delete_act = menu.addAction("🗑️ Resmi sil")
+        open_act   = menu.addAction("🔍 FullScreen")
+        delete_act = menu.addAction("🗑️ Delete Image")
         action = menu.exec(event.globalPos())
         if action == open_act:
             dlg = ImageViewerDialog(self._full_pix, self._filename, self)
             dlg.exec()
         elif action == delete_act:
-            if QMessageBox.question(self, "Sil", "Bu resim silinsin mi?",
+            if QMessageBox.question(self, "Delete", "Delete?",
                                     QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
                 self._on_delete(self._image_id)
 
