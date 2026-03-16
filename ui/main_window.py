@@ -51,6 +51,13 @@ def _register_tools():
         ("study_timer",        "tools.study_timer",       "StudyTimerTool"),
         ("study_resources",    "tools.study_resources",   "StudyResourcesTool"),
         ("study_goals",        "tools.study_goals",       "StudyGoalsTool"),
+        ("clock_app",       "tools.clock_app",       "ClockTool"),
+        ("notes_app",       "tools.notes_app",       "NotesApp"),
+        ("unit_converter",  "tools.unit_converter",  "UnitConverterTool"),
+        ("file_manager",    "tools.file_manager",    "FileManagerTool"),
+        ("screen_recorder", "tools.screen_recorder", "ScreenRecorderTool"),
+        ("exam_detail",    "tools.exam_detail",    "ExamDetailTool"),
+        ("exam_progress",  "tools.exam_progress",  "ExamProgressTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:

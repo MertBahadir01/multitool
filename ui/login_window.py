@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from core.auth_manager import auth_manager
 from database.database import user_exists
-
+from pathlib import Path
 
 class LoginWindow(QDialog):
     login_success = Signal()
@@ -25,7 +25,25 @@ class LoginWindow(QDialog):
 
         self._drag_pos = None
 
+        self.last_user_file = Path("last_user.txt")
+
         self._build_ui()
+
+
+    def _load_last_user(self):
+        if self.last_user_file.exists():
+            try:
+                username = self.last_user_file.read_text().strip()
+                if username:
+                    self.login_user.setText(username)
+                    self.login_pass.setFocus()
+                    return
+            except Exception:
+                pass
+
+        self.login_user.setFocus()
+
+
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -170,7 +188,7 @@ class LoginWindow(QDialog):
             self.stack.setCurrentIndex(1)
 
         # Auto focus username
-        self.login_user.setFocus()
+        self._load_last_user()
 
     def _do_login(self):
         u = self.login_user.text().strip()
@@ -179,6 +197,7 @@ class LoginWindow(QDialog):
         ok, msg = auth_manager.login(u, p)
 
         if ok:
+            self._save_last_user(u)
             self.login_success.emit()
             self.accept()
         else:
@@ -205,6 +224,14 @@ class LoginWindow(QDialog):
         else:
             self.reg_status.setStyleSheet("color: #F44336;")
             self.reg_status.setText(msg)
+
+
+    def _save_last_user(self, username):
+        try:
+            self.last_user_file.write_text(username)
+        except Exception:
+            pass
+
 
     # =========================
     # Window Dragging

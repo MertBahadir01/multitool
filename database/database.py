@@ -250,6 +250,73 @@ def init_database():
         )
     """)
 
+
+    # ── Exam Detail: sessions ─────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_detail_sessions (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            exam_type   TEXT    NOT NULL,
+            exam_date   TEXT    NOT NULL,
+            source      TEXT    DEFAULT '',
+            enc_notes   BLOB,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+ 
+    # ── Exam Detail: section (subject) scores ─────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_detail_section_scores (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_id     INTEGER NOT NULL,
+            user_id     INTEGER NOT NULL,
+            subject     TEXT    NOT NULL,
+            total_q     INTEGER NOT NULL DEFAULT 0,
+            correct     INTEGER NOT NULL DEFAULT 0,
+            incorrect   INTEGER NOT NULL DEFAULT 0,
+            empty       INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(exam_id, user_id, subject),
+            FOREIGN KEY (exam_id)  REFERENCES exam_detail_sessions(id),
+            FOREIGN KEY (user_id)  REFERENCES users(id)
+        )
+    """)
+ 
+    # ── Exam Detail: topic scores ─────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_detail_topic_scores (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_id     INTEGER NOT NULL,
+            user_id     INTEGER NOT NULL,
+            subject     TEXT    NOT NULL,
+            topic       TEXT    NOT NULL,
+            correct     INTEGER NOT NULL DEFAULT 0,
+            incorrect   INTEGER NOT NULL DEFAULT 0,
+            empty       INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(exam_id, user_id, subject, topic),
+            FOREIGN KEY (exam_id)  REFERENCES exam_detail_sessions(id),
+            FOREIGN KEY (user_id)  REFERENCES users(id)
+        )
+    """)
+ 
+    # ── Exam Detail: wrong question photos ────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_detail_wrong_questions (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_id     INTEGER NOT NULL,
+            user_id     INTEGER NOT NULL,
+            subject     TEXT    NOT NULL,
+            topic       TEXT    NOT NULL DEFAULT '',
+            lesson_id   INTEGER,
+            lesson_name TEXT    DEFAULT '',
+            enc_photo   BLOB,
+            enc_note    BLOB,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (exam_id)  REFERENCES exam_detail_sessions(id),
+            FOREIGN KEY (user_id)  REFERENCES users(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 

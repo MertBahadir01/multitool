@@ -24,9 +24,15 @@ TOOL_CARDS = {
         ("⏱️", "Study Timer",      "Pomodoro timer with logging",        "study_timer"),
         ("📖", "Resource Library", "Books, PDFs, links & videos",       "study_resources"),
         ("🎯", "Goals & Reminders","Set goals and track deadlines",      "study_goals"),
+        ("📋", "Exam Detail",   "TYT/AYT detaylı sınav girişi",        "exam_detail"),
+        ("📈", "Exam Progress", "Bölüm/konu bazlı ilerleme grafikleri", "exam_progress"),
     ],
     "utility": [
         ("📓", "Notebook", "Encrypted notes per person", "notebook"),
+        ("📒", "Quick Notes",     "Fast notes with tags and images",    "notes_app"),
+        ("🕐", "Clock",           "World clocks, stopwatch & alarms",   "clock_app"),
+        ("📐", "Unit Converter",  "Length, weight, temp, currency…",    "unit_converter"),
+        ("🎬", "Screen Recorder", "Record screen & export as GIF",      "screen_recorder"),
         ("📱", "QR Generator", "Generate QR codes from text", "qr_generator"),
         ("📷", "QR Scanner", "Decode QR codes from images", "qr_scanner"),
         ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
@@ -35,6 +41,7 @@ TOOL_CARDS = {
         ("🔢", "Calculator", "Calculator with history", "calculator"),
     ],
     "file": [
+        ("🗂️", "File Manager",    "Browse, duplicate scan & cleaner",  "file_manager"),
         ("#️⃣", "File Hash", "MD5/SHA hash of files", "file_hash"),
         ("✏️", "Batch Renamer", "Rename files in bulk", "batch_renamer"),
         ("📊", "Size Analyzer", "Analyze folder sizes", "file_size_analyzer"),
