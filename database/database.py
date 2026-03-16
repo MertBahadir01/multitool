@@ -317,6 +317,81 @@ def init_database():
         )
     """)
 
+
+    # ── Quick Notes ───────────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS quick_notes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            title       TEXT    NOT NULL DEFAULT '',
+            body        TEXT    NOT NULL DEFAULT '',
+            tags        TEXT    NOT NULL DEFAULT '',
+            pinned      INTEGER NOT NULL DEFAULT 0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+ 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS note_images (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            note_id     INTEGER NOT NULL,
+            user_id     INTEGER NOT NULL,
+            filename    TEXT    NOT NULL DEFAULT '',
+            mime_type   TEXT    NOT NULL DEFAULT 'image/png',
+            image_data  BLOB    NOT NULL,
+            FOREIGN KEY (note_id)  REFERENCES quick_notes(id),
+            FOREIGN KEY (user_id)  REFERENCES users(id)
+        )
+    """)
+
+    
+    # ── Task Manager ─────────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS task_lists (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            name        TEXT    NOT NULL,
+            color       TEXT    NOT NULL DEFAULT '#00BFA5',
+            position    INTEGER NOT NULL DEFAULT 0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+ 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            list_id     INTEGER NOT NULL,
+            title       TEXT    NOT NULL,
+            description TEXT    DEFAULT '',
+            due_date    TEXT    DEFAULT '',
+            reminder    TEXT    DEFAULT '',
+            priority    TEXT    NOT NULL DEFAULT 'medium',
+            status      TEXT    NOT NULL DEFAULT 'pending',
+            position    INTEGER NOT NULL DEFAULT 0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id)  REFERENCES users(id),
+            FOREIGN KEY (list_id)  REFERENCES task_lists(id)
+        )
+    """)
+ 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS task_subtasks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id     INTEGER NOT NULL,
+            user_id     INTEGER NOT NULL,
+            title       TEXT    NOT NULL,
+            done        INTEGER NOT NULL DEFAULT 0,
+            position    INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (task_id)  REFERENCES tasks(id),
+            FOREIGN KEY (user_id)  REFERENCES users(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 

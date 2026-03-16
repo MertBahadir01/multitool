@@ -58,6 +58,7 @@ def _register_tools():
         ("screen_recorder", "tools.screen_recorder", "ScreenRecorderTool"),
         ("exam_detail",    "tools.exam_detail",    "ExamDetailTool"),
         ("exam_progress",  "tools.exam_progress",  "ExamProgressTool"),
+        ("task_manager", "tools.task_manager", "TaskManagerTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:

@@ -31,6 +31,7 @@ TOOL_CARDS = {
         ("📓", "Notebook", "Encrypted notes per person", "notebook"),
         ("📒", "Quick Notes",     "Fast notes with tags and images",    "notes_app"),
         ("🕐", "Clock",           "World clocks, stopwatch & alarms",   "clock_app"),
+        ("✅", "Task Manager", "Lists, tasks, subtasks & deadlines", "task_manager"),
         ("📐", "Unit Converter",  "Length, weight, temp, currency…",    "unit_converter"),
         ("🎬", "Screen Recorder", "Record screen & export as GIF",      "screen_recorder"),
         ("📱", "QR Generator", "Generate QR codes from text", "qr_generator"),
