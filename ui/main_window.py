@@ -67,6 +67,15 @@ def _register_tools():
         ("minesweeper",   "tools.minesweeper",     "MinesweeperTool"),
         ("tetris",        "tools.tetris",           "TetrisTool"),
         ("reaction_time", "tools.reaction_time",   "ReactionTimeTool"),
+        ("memory_match", "tools.memory_match", "MemoryMatchTool"),
+        ("pong",           "tools.pong",           "PongTool"),
+        ("game_2048",      "tools.game_2048",       "Game2048Tool"),
+        ("block_blast",    "tools.block_blast",     "BlockBlastTool"),
+        ("wordle",         "tools.wordle",           "WordleTool"),
+        ("breakout",       "tools.breakout",         "BreakoutTool"),
+        ("space_invaders", "tools.space_invaders",   "SpaceInvadersTool"),
+        ("connect_four",   "tools.connect_four",     "ConnectFourTool"),
+        ("pac_man",        "tools.pac_man",           "PacManTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:
