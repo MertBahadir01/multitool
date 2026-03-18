@@ -19,7 +19,7 @@ class FlappyCanvas(QWidget):
         self._add_pipe()
     def _add_pipe(self):
         top=random.randint(60,H-GAP-60)
-        self.pipes.append({"x":W+20,"top":top})
+        self.pipes.append({"x":W+20,"top":top,"passed":False})
     def tap(self):
         if not self.alive: return
         self.started=True; self.vel=JUMP
@@ -33,7 +33,7 @@ class FlappyCanvas(QWidget):
             if 60<p["x"]<120:
                 if not(p["top"]<self.bird_y<p["top"]+GAP):
                     self.alive=False; self.update(); return
-            if p["x"]==58: self.score+=1
+            if not p["passed"] and p["x"] < 76: p["passed"]=True; self.score+=1
         self.pipes=[p for p in self.pipes if p["x"]>-PIPE_W]
         if self._frame%90==0: self._add_pipe()
         self.update()
