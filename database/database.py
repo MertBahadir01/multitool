@@ -421,6 +421,123 @@ def init_database():
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_game_scores ON game_scores(game_id, score DESC)")
 
+    # ── Finance: Transactions ─────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_transactions (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            amount      REAL    NOT NULL,
+            category    TEXT    NOT NULL DEFAULT '',
+            note        TEXT    DEFAULT '',
+            tx_type     TEXT    NOT NULL DEFAULT 'expense',
+            tx_date     TEXT    NOT NULL,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Finance: Budgets ──────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_budgets (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            category    TEXT    NOT NULL,
+            amount      REAL    NOT NULL,
+            period      TEXT    NOT NULL DEFAULT 'monthly',
+            UNIQUE(user_id, category),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Finance: Savings Goals ────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_savings (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER NOT NULL,
+            name         TEXT    NOT NULL,
+            target       REAL    NOT NULL,
+            saved        REAL    NOT NULL DEFAULT 0,
+            deadline     TEXT    DEFAULT '',
+            monthly_add  REAL    NOT NULL DEFAULT 0,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Finance: Assets / Portfolio ───────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_assets (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            symbol      TEXT    NOT NULL,
+            name        TEXT    NOT NULL DEFAULT '',
+            quantity    REAL    NOT NULL DEFAULT 0,
+            buy_price   REAL    NOT NULL DEFAULT 0,
+            asset_type  TEXT    NOT NULL DEFAULT 'stock',
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Finance: Subscriptions ────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_subscriptions (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id       INTEGER NOT NULL,
+            name          TEXT    NOT NULL,
+            amount        REAL    NOT NULL,
+            currency      TEXT    NOT NULL DEFAULT 'TRY',
+            billing_cycle TEXT    NOT NULL DEFAULT 'monthly',
+            next_due      TEXT    NOT NULL,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Finance: Debts / Loans ────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_debts (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id          INTEGER NOT NULL,
+            name             TEXT    NOT NULL,
+            principal        REAL    NOT NULL,
+            interest_rate    REAL    NOT NULL DEFAULT 0,
+            remaining        REAL    NOT NULL,
+            monthly_payment  REAL    NOT NULL DEFAULT 0,
+            start_date       TEXT    DEFAULT '',
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Finance: Net Worth ────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_net_worth (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            name        TEXT    NOT NULL,
+            value       REAL    NOT NULL,
+            item_type   TEXT    NOT NULL DEFAULT 'asset',
+            updated_at  TEXT    DEFAULT '',
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ── Finance: Bills ────────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_bills (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            name        TEXT    NOT NULL,
+            amount      REAL    NOT NULL DEFAULT 0,
+            due_date    TEXT    NOT NULL,
+            recurring   INTEGER NOT NULL DEFAULT 0,
+            note        TEXT    DEFAULT '',
+            paid        INTEGER NOT NULL DEFAULT 0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 

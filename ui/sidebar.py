@@ -15,6 +15,7 @@ CATEGORIES = [
     ("🎬", "Media Tools", "media"),
     ("🌐", "Networking", "network"),
     ("💻", "Developer Tools", "developer"),
+    ("💰", "Finance", "finance"),
     ("🔒", "Security Tools", "security"),
 
 ]
