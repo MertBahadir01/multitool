@@ -7,8 +7,12 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate
 from core.auth_manager import auth_manager
 from tools.finance_service.finance_service import SavingsService
-from tools.finance_service.finance_base import make_header, MiniChart, StatCard, TEAL, ORANGE, GREEN, RED, CARD
-from tools.finance_service.finance_service import future_value
+from tools.finance_service.finance_base import make_header, MiniChart, StatCard, TEAL, ORANGE, GREEN, RED, CARD, future_value
+
+
+def future_value(present, rate, years, monthly=0):
+    from tools.finance_service.finance_service import future_value as fv
+    return fv(present, rate, years, monthly)
 
 
 class GoalPlannerTool(QWidget):

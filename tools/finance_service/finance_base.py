@@ -84,7 +84,7 @@ class MiniChart(QWidget):
         if not self._series:
             p.setPen(QColor("#333"))
             p.setFont(QFont("Segoe UI", 11))
-            p.drawText(QRectF(0, 0, W, H), Qt.AlignCenter, "Veri yok")
+            p.drawText(QRectF(0, 0, W, H), Qt.AlignCenter, "No data")
             p.end(); return
 
         cw, ch = W - PL - PR, H - PT - PB
@@ -187,7 +187,7 @@ class BarChart(QWidget):
 
         if not self._data:
             p.setPen(QColor("#333"))
-            p.drawText(QRectF(0, 0, W, H), Qt.AlignCenter, "Veri yok")
+            p.drawText(QRectF(0, 0, W, H), Qt.AlignCenter, "No data")
             p.end(); return
 
         cw, ch = W - PL - PR, H - PT - PB
@@ -221,8 +221,7 @@ class StatCard(QFrame):
         self.setFixedHeight(80)
         self.setStyleSheet(
             f"QFrame{{background:{CARD};border:1px solid {color};"
-            "border-radius:8px;}"
-            "QLabel{{border:none;background:transparent;}}")
+            "border-radius:8px;}} QLabel{border:none;background:transparent;}")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(12, 8, 12, 8)
         self._val_lbl = QLabel(value)
@@ -255,3 +254,15 @@ def make_header(title: str, subtitle: str = "") -> QFrame:
         hl.addWidget(s)
     hl.addStretch()
     return hdr, hl
+
+
+def future_value(present: float, annual_rate: float, years: int,
+                 monthly_contrib: float = 0) -> float:
+    """Compound interest future value with optional monthly contributions."""
+    r = annual_rate / 100 / 12
+    n = years * 12
+    if r == 0:
+        return present + monthly_contrib * n
+    fv_lump    = present * (1 + r) ** n
+    fv_annuity = monthly_contrib * ((1 + r) ** n - 1) / r
+    return round(fv_lump + fv_annuity, 2)

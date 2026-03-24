@@ -11,8 +11,8 @@ from core.auth_manager import auth_manager
 from tools.finance_service.finance_service import TransactionService
 from tools.finance_service.finance_base import make_header, TEAL, ORANGE, RED, GREEN, CARD
 
-CATEGORIES = ["Yiyecek","Ulaşım","Faturalar","Kira","Sağlık","Eğlence",
-              "Giyim","Eğitim","Alışveriş","Diğer"]
+CATEGORIES = ["Food","Transport","Bills","Rent","Health","Entertainment",
+              "Clothing","Education","Shopping","Other"]
 
 
 class ReceiptScannerTool(QWidget):

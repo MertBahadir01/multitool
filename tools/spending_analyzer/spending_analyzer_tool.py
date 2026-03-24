@@ -26,7 +26,7 @@ class SpendingAnalyzerTool(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         hdr, hl = make_header("🔍 Harcama Analizi")
         self._period_cb = QComboBox()
-        self._period_cb.addItems(["Bu Ay","Son 3 Ay","Son 6 Ay","Bu Yıl","Tümü"])
+        self._period_cb.addItems(["This Month","Last 3 Months","Last 6 Months","This Year","All"])
         self._period_cb.setStyleSheet("background:#252525;border:1px solid #3E3E3E;border-radius:6px;padding:6px;color:#E0E0E0;")
         self._period_cb.currentIndexChanged.connect(self._refresh)
         hl.addWidget(self._period_cb)
@@ -54,7 +54,7 @@ class SpendingAnalyzerTool(QWidget):
         ll.addWidget(self._bar_chart, 1)
 
         self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(["Kategori","Tutar","Pay (%)"])
+        self._table.setHorizontalHeaderLabels(["Category","Amount","Pay (%)"])
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setMaximumHeight(220)

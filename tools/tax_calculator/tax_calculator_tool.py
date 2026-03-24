@@ -44,7 +44,7 @@ class TaxCalculatorTool(QWidget):
         self._income.setStyleSheet(
             "background:#252525;border:1px solid #3E3E3E;border-radius:6px;padding:8px;font-size:14px;color:#E0E0E0;")
         ll.addWidget(self._income)
-        btn = QPushButton("Hesapla")
+        btn = QPushButton("Calculate")
         btn.setFixedHeight(38)
         btn.setStyleSheet(f"background:{TEAL};color:#000;border:none;border-radius:8px;font-weight:bold;font-size:14px;")
         btn.clicked.connect(self._calculate)
@@ -66,7 +66,7 @@ class TaxCalculatorTool(QWidget):
         rl.setSpacing(12)
         rl.addWidget(QLabel("Vergi Dilimleri", styleSheet="color:#888;font-size:12px;font-weight:bold;"))
         self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(["Dilim (₺)","Oran","Vergi (₺)"])
+        self._table.setHorizontalHeaderLabels(["Dilim (₺)","Rate","Vergi (₺)"])
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setMaximumHeight(220)

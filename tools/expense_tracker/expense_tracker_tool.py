@@ -12,13 +12,13 @@ from tools.finance_service.finance_base import (
     make_header, BarChart, StatCard, TEAL, ORANGE, RED, GREEN, BG, CARD, PALETTE
 )
 
-CATEGORIES = ["Yiyecek","Ulaşım","Faturalar","Kira","Sağlık","Eğlence",
-              "Giyim","Eğitim","Alışveriş","Diğer"]
+CATEGORIES = ["Food","Transport","Bills","Rent","Health","Entertainment",
+              "Clothing","Education","Shopping","Other"]
 
 
 class ExpenseTrackerTool(QWidget):
     name = "Expense Tracker"
-    description = "Harcamaları takip et, kategorize et, toplamları gör"
+    description = "Track expenses, categorize, view totals"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -45,8 +45,8 @@ class ExpenseTrackerTool(QWidget):
 
         # Stat cards
         stats = QHBoxLayout()
-        self._total_card  = StatCard("Bu Ay Toplam", "₺0", RED)
-        self._income_card = StatCard("Gelir", "₺0", GREEN)
+        self._total_card  = StatCard("Total This Month", "₺0", RED)
+        self._income_card = StatCard("Income", "₺0", GREEN)
         self._net_card    = StatCard("Net", "₺0", TEAL)
         for c in (self._total_card, self._income_card, self._net_card):
             stats.addWidget(c)
@@ -97,7 +97,7 @@ class ExpenseTrackerTool(QWidget):
 
         # Table
         self._table = QTableWidget(0, 5)
-        self._table.setHorizontalHeaderLabels(["Tarih","Tür","Kategori","Tutar","Not"])
+        self._table.setHorizontalHeaderLabels(["Date","Type","Category","Amount","Note"])
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectRows)

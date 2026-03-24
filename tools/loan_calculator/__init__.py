@@ -1,2 +1,2 @@
 from .loan_calculator_tool import LoanCalculatorTool
-TOOL_META = {"id": "loan_calculator", "name": "LoanCalculator", "category": "finance", "widget_class": LoanCalculatorTool}
+TOOL_META = {"id": "loan_calculator", "name": "Loan Calculator", "category": "finance", "widget_class": LoanCalculatorTool}

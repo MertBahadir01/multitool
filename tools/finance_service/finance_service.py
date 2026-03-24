@@ -14,6 +14,45 @@ import threading
 import requests
 from database.database import get_connection
 
+# ── Event Bus (CRITICAL) ──────────────────────────────────────────────────────
+# All tools call finance_bus.emit(event) after data changes.
+# Any tool can subscribe with finance_bus.subscribe(event, callback).
+# This drives: Expense → Budget → CashFlow → Dashboard → Insights
+
+from PySide6.QtCore import QObject, Signal as _Signal
+
+class _FinanceBus(QObject):
+    """Singleton event bus. All finance tools share this instance."""
+    changed = _Signal(str)   # emits event name string
+
+    def emit_event(self, event: str):
+        """Emit a named event. Call after any data mutation."""
+        self.changed.emit(event)
+
+    def subscribe(self, callback):
+        """Subscribe to ALL finance events. callback(event_name: str)."""
+        self.changed.connect(callback)
+
+    def unsubscribe(self, callback):
+        try:
+            self.changed.disconnect(callback)
+        except Exception:
+            pass
+
+finance_bus = _FinanceBus()
+
+# Event name constants
+EVT_TRANSACTION = "transaction"
+EVT_BUDGET      = "budget"
+EVT_SAVINGS     = "savings"
+EVT_DEBT        = "debt"
+EVT_ASSET       = "asset"
+EVT_SUBSCRIPTION = "subscription"
+EVT_BILL        = "bill"
+EVT_ALL         = "all"
+
+
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 def _today() -> str:
@@ -37,6 +76,7 @@ class TransactionService:
             (self.uid, amount, category, note, tx_type, tx_date or _today())
         )
         conn.commit(); rid = cur.lastrowid; conn.close()
+        finance_bus.emit_event(EVT_TRANSACTION)
         return rid
 
     def get_all(self, tx_type: str = None, category: str = None,
@@ -195,6 +235,7 @@ class SubscriptionService:
             (self.uid, name, amount, currency, billing_cycle, next_due or _today())
         )
         conn.commit(); rid = cur.lastrowid; conn.close()
+        finance_bus.emit_event(EVT_TRANSACTION)
         return rid
 
     def get_all(self) -> list:
@@ -234,6 +275,7 @@ class DebtService:
             (self.uid, name, principal, interest_rate, remaining, monthly_payment, start_date or _today())
         )
         conn.commit(); rid = cur.lastrowid; conn.close()
+        finance_bus.emit_event(EVT_TRANSACTION)
         return rid
 
     def get_all(self) -> list:
@@ -271,6 +313,7 @@ class NetWorthService:
             (self.uid, name, value, item_type, _today())
         )
         conn.commit(); rid = cur.lastrowid; conn.close()
+        finance_bus.emit_event(EVT_TRANSACTION)
         return rid
 
     def get_all(self) -> list:
@@ -315,6 +358,7 @@ class BillService:
             (self.uid, name, amount, due_date, 1 if recurring else 0, note)
         )
         conn.commit(); rid = cur.lastrowid; conn.close()
+        finance_bus.emit_event(EVT_TRANSACTION)
         return rid
 
     def get_all(self) -> list:

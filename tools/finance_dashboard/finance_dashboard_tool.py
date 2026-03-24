@@ -19,7 +19,7 @@ from tools.finance_service.finance_base import (
 
 class FinanceDashboardTool(QWidget):
     name = "Finance Dashboard"
-    description = "Tüm finansal verilerin özet gösterge paneli"
+    description = "Central overview of all your finances"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -55,8 +55,8 @@ class FinanceDashboardTool(QWidget):
 
         # ── Row 1: KPI cards ──────────────────────────────────────────────────
         kpi_row = QHBoxLayout()
-        self._income_card  = StatCard("Bu Ay Gelir",  "₺0", GREEN)
-        self._expense_card = StatCard("Bu Ay Gider",  "₺0", RED)
+        self._income_card  = StatCard("Income This Month",  "₺0", GREEN)
+        self._expense_card = StatCard("Expenses This Month",  "₺0", RED)
         self._net_card     = StatCard("Net",           "₺0", TEAL)
         self._sub_card     = StatCard("Aylık Abonelik","₺0", ORANGE)
         self._debt_card    = StatCard("Toplam Borç",   "₺0", RED)

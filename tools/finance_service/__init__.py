@@ -1,1 +1,1 @@
-# finance_service — shared service, no widget
+# finance_service — shared data layer, no widget class

@@ -420,8 +420,9 @@ def init_database():
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_game_scores ON game_scores(game_id, score DESC)")
+    
 
-    # ── Finance: Transactions ─────────────────────────────────────────────────
+    # ── Transactions ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_transactions (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -436,7 +437,7 @@ def init_database():
         )
     """)
 
-    # ── Finance: Budgets ──────────────────────────────────────────────────────
+    # ── Budgets ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_budgets (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -449,7 +450,7 @@ def init_database():
         )
     """)
 
-    # ── Finance: Savings Goals ────────────────────────────────────────────────
+    # ── Savings ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_savings (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -464,7 +465,7 @@ def init_database():
         )
     """)
 
-    # ── Finance: Assets / Portfolio ───────────────────────────────────────────
+    # ── Assets ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_assets (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -479,7 +480,7 @@ def init_database():
         )
     """)
 
-    # ── Finance: Subscriptions ────────────────────────────────────────────────
+    # ── Subscriptions ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_subscriptions (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -494,7 +495,7 @@ def init_database():
         )
     """)
 
-    # ── Finance: Debts / Loans ────────────────────────────────────────────────
+    # ── Debts ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_debts (
             id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -509,7 +510,7 @@ def init_database():
         )
     """)
 
-    # ── Finance: Net Worth ────────────────────────────────────────────────────
+    # ── Net Worth ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_net_worth (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -522,7 +523,7 @@ def init_database():
         )
     """)
 
-    # ── Finance: Bills ────────────────────────────────────────────────────────
+    # ── Bills ─────────────────────────────────
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_bills (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
