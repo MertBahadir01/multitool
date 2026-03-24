@@ -237,7 +237,7 @@ All games share a single `game_scores` table — every score is attributed to th
 
 ### 💰 Finance Tools
 
-All finance tools are in Turkish, share 8 DB tables, and pull live data from free APIs (no API key needed).
+All finance tools share 8 DB tables, and pull live data from free APIs (no API key needed).
 
 | Tool | Description |
 |---|---|
