@@ -97,6 +97,11 @@ def _register_tools():
         ("receipt_scanner",      "tools.receipt_scanner",      "ReceiptScannerTool"),
         ("media_modernizer", "tools.media_modernizer", "MediaModernizerTool"),
         ("number_prefix", "tools.number_prefix", "NumberPrefixTool"),
+        ("url_shortener",      "tools.url_shortener",      "URLShortenerTool"),
+        ("website_screenshot", "tools.website_screenshot", "WebsiteScreenshotTool"),
+        ("port_scanner",       "tools.port_scanner",       "PortScannerTool"),
+        ("sql_studio",         "tools.sql_studio",         "SQLStudioTool"),
+        ("color_picker",       "tools.color_picker",       "ColorPickerTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:
