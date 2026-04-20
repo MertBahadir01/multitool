@@ -62,12 +62,14 @@ TOOL_CARDS = {
     "file": [
         ("🗂️", "File Manager",    "Browse, duplicate scan & cleaner",  "file_manager"),
         ("#️⃣", "File Hash", "MD5/SHA hash of files", "file_hash"),
+        ("🔢", "Number Prefix", "Add number prefixes to filenames", "number_prefix"),
         ("✏️", "Batch Renamer", "Rename files in bulk", "batch_renamer"),
         ("📊", "Size Analyzer", "Analyze folder sizes", "file_size_analyzer"),
         ("📄", "Text Merger", "Merge text files", "text_merger"),
     ],
     "media": [
         ("🎵", "MP4 → MP3", "Extract audio from video", "mp4_to_mp3"),
+        ("🎬", "Media Modernizer", "Convert 3gp/avi/bmp to mp4/png", "media_modernizer"),
         ("🖼️", "Image Converter", "Convert image formats", "image_converter"),
         ("📐", "Image Resizer", "Resize images in bulk", "image_resizer"),
     ],

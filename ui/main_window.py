@@ -95,6 +95,8 @@ def _register_tools():
         ("invoice_tool",         "tools.invoice_tool",         "InvoiceTool"),
         ("currency_converter",   "tools.currency_converter",   "CurrencyConverterTool"),
         ("receipt_scanner",      "tools.receipt_scanner",      "ReceiptScannerTool"),
+        ("media_modernizer", "tools.media_modernizer", "MediaModernizerTool"),
+        ("number_prefix", "tools.number_prefix", "NumberPrefixTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:
