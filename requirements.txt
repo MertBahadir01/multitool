@@ -29,6 +29,8 @@ pandas>=2.0.0                   # Used by data export / analysis tools
 # ── Build ─────────────────────────────────────────────────────────────────────
 PyInstaller>=6.0.0              # Executable packaging (run: pyinstaller main.spec)
 
+pip install requests
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OPTIONAL — install only if you need these specific tools
 # ─────────────────────────────────────────────────────────────────────────────
