@@ -1,64 +1,70 @@
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
 # MultiTool Studio — Python Dependencies
+# =============================================================================
+# Python : 3.10+
 # Install: pip install -r requirements.txt
-# Python: 3.10+
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
 
-# ── Core UI ───────────────────────────────────────────────────────────────────
-PySide6>=6.6.0                  # Qt6 UI framework (widgets, painter, timers)
 
-# ── Image Processing ──────────────────────────────────────────────────────────
-Pillow>=10.0.0                  # Image convert/resize, QR image backend
+# ── Core UI ──────────────────────────────────────────────────────────────────
+PySide6>=6.6.0,<7.0.0
+
+
+# ── Image Processing ─────────────────────────────────────────────────────────
+Pillow>=10.0.0
+
 
 # ── QR Codes ─────────────────────────────────────────────────────────────────
-qrcode[pil]>=7.4.2              # QR code generation
+qrcode[pil]>=7.4.2
 
-# ── Security / Encryption ────────────────────────────────────────────────────
-bcrypt>=4.0.0                   # Password hashing (vault master password)
-cryptography>=41.0.0            # Fernet AES encryption (notebook, vault, exams)
 
-# ── Networking / APIs ─────────────────────────────────────────────────────────
-requests>=2.31.0                # HTTP client — finance APIs, IP info, site checker
+# ── Security & Encryption ────────────────────────────────────────────────────
+bcrypt>=4.0.0
+cryptography>=41.0.0
+
+
+# ── Networking ───────────────────────────────────────────────────────────────
+requests>=2.31.0
+
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
-pyperclip>=1.8.2                # Cross-platform clipboard access
+pyperclip>=1.8.2
 
-# ── System Monitoring ─────────────────────────────────────────────────────────
-psutil>=7.0.0                   # CPU, RAM, disk usage monitoring (Port Monitor Live)
+
+# ── System Monitoring ────────────────────────────────────────────────────────
+psutil>=7.0.0
+
 
 # ── Data Processing ──────────────────────────────────────────────────────────
-pandas>=2.0.0                   # Data export / analysis tools
+pandas>=2.0.0
+
 
 # ── Data Visualization ───────────────────────────────────────────────────────
-matplotlib>=3.10.5              # Charts, graphs, data visualization (Data Chart Builder)
+matplotlib>=3.10.5
 
-# ── Build / Packaging ────────────────────────────────────────────────────────
-PyInstaller>=6.0.0              # Build executable (.exe) from project
 
-# ─────────────────────────────────────────────────────────────────────────────
-# OPTIONAL — install only if you need these specific tools
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Packaging ────────────────────────────────────────────────────────────────
+PyInstaller>=6.0.0
 
-# Receipt Scanner (OCR):
-#   pip install pytesseract pillow
-#   + Install Tesseract-OCR binary:
-#     Windows: https://github.com/UB-Mannheim/tesseract/wiki
-#     macOS:   brew install tesseract tesseract-lang
-#     Linux:   sudo apt install tesseract-ocr tesseract-ocr-tur
+
+# =============================================================================
+# OPTIONAL — install only if needed
+# =============================================================================
+
+# ── Computer Vision / Camera ─────────────────────────────────────────────────
+# Needed by: qr_scanner, face_reader, object_detector
+# opencv-python-headless>=4.8.0
+# numpy>=1.26.0
+
+# ── OCR (Receipt Scanner) ────────────────────────────────────────────────────
 # pytesseract>=0.3.10
 
-# MP4→MP3 (fallback if ffmpeg not on PATH):
-#   pip install moviepy
+# ── MP4 → MP3 (fallback if ffmpeg not installed) ─────────────────────────────
 # moviepy>=1.0.3
 
-# Screen Recorder:
-#   Requires ffmpeg on system PATH
-#   Windows: https://ffmpeg.org/download.html
-#   macOS:   brew install ffmpeg
-#   Linux:   sudo apt install ffmpeg
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SYSTEM TOOLS (not pip — install separately)
-# ─────────────────────────────────────────────────────────────────────────────
-# ffmpeg          — MP4→MP3 conversion, Screen Recorder (GIF/video export)
-# Tesseract-OCR   — Receipt Scanner image-to-text (optional)
+# =============================================================================
+# SYSTEM TOOLS (install separately)
+# =============================================================================
+# ffmpeg      → mp4_to_mp3, screen_recorder
+# Tesseract   → OCR (pytesseract)
