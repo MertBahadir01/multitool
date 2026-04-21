@@ -10,6 +10,7 @@ from ui.sidebar import Sidebar
 from ui.dashboard import Dashboard, CategoryView
 from core.auth_manager import auth_manager
 import os
+from core import config 
 
 TOOL_REGISTRY = {}
 
@@ -179,7 +180,7 @@ class MainWindow(QMainWindow):
         sb = self.statusBar()
         user = auth_manager.current_user
         username = user["username"] if user else "Guest"
-        self._status_lbl = QLabel(f"  👤 Logged in as: {username}   |   ⚙ MultiTool Studio v1.0.23")
+        self._status_lbl = QLabel(f"  👤 Logged in as: {username}   |   ⚙ {config.APP_NAME} v{config.APP_VERSION}")
         self._status_lbl.setStyleSheet("color: #888888;")
         sb.addWidget(self._status_lbl)
 

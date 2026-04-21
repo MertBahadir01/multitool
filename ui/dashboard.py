@@ -200,25 +200,34 @@ class Dashboard(QWidget):
         sub.setStyleSheet("color: #888888; font-size: 13px;")
         layout.addWidget(sub)
 
-        # Stats row
         stats = QHBoxLayout()
+        
+        # Stats row loop
         for count, label, color in [
             (len(ALL_TOOLS), "Total Tools", "#00BFA5"),
-            (4, "AI Tools", "#9C27B0"),
-            (1, "Security Tools", "#F44336"),
-            (3, "Media Tools", "#FF9800"),
+            (len(TOOL_CARDS.get("study", [])), "Study Tools", "#9C27B0"), # Dynamic count
+            (len(TOOL_CARDS.get("security", [])), "Security Tools", "#F44336"),
+            (len(TOOL_CARDS.get("media", [])), "Media Tools", "#FF9800"),
         ]:
             card = QFrame()
-            card.setFixedHeight(70)
-            card.setStyleSheet(f"background: #252526; border: 1px solid {color}; border-radius: 8px; padding: 8px;")
+            card.setFixedHeight(80) # Increased slightly
+            card.setStyleSheet(f"background: #252526; border: 2px solid {color}; border-radius: 8px;")
+
             cl = QVBoxLayout(card)
-            cl.setContentsMargins(12, 8, 12, 8)
+            cl.setContentsMargins(10, 5, 10, 5)
+            cl.setSpacing(0) # Reduce space between number and label
+            cl.setAlignment(Qt.AlignCenter) # Center everything
+
             n = QLabel(str(count))
-            n.setFont(QFont("Segoe UI", 20, QFont.Bold))
-            n.setStyleSheet(f"color: {color}; border: none;")
-            cl.addWidget(n)
+            n.setFont(QFont("Segoe UI", 18, QFont.Bold))
+            n.setAlignment(Qt.AlignCenter) # Center the number
+            n.setStyleSheet(f"color: {color}; border: none; background: transparent;")
+
             l = QLabel(label)
-            l.setStyleSheet("color: #888888; font-size: 11px; border: none;")
+            l.setAlignment(Qt.AlignCenter) # Center the label
+            l.setStyleSheet("color: #AAAAAA; font-size: 10px; border: none; background: transparent;")
+
+            cl.addWidget(n)
             cl.addWidget(l)
             stats.addWidget(card)
         layout.addLayout(stats)

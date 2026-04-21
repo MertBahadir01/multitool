@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QScrollArea
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
-
+from core import config 
 
 CATEGORIES = [
     ("🏠", "Dashboard", "dashboard"),
@@ -81,7 +81,7 @@ class Sidebar(QWidget):
         layout.addStretch()
 
         # Version
-        ver = QLabel("v1.0.23")
+        ver = QLabel(f"v{config.APP_VERSION}")
         ver.setStyleSheet("color: #555555; font-size: 11px; padding-left: 12px;")
         layout.addWidget(ver)
 
