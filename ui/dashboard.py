@@ -201,7 +201,7 @@ class Dashboard(QWidget):
         layout.addWidget(sub)
 
         stats = QHBoxLayout()
-        
+
         # Stats row loop
         for count, label, color in [
             (len(ALL_TOOLS), "Total Tools", "#00BFA5"),
@@ -267,11 +267,12 @@ class CategoryView(QWidget):
         self._build_ui()
 
     def _build_ui(self):
+        # 1. Main Layout setup
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        tools = TOOL_CARDS.get(self.category, [])
+        # 2. Dynamic Header
         cat_names = {
             #"ai": "🤖 AI Tools",
             "study": "📚 Study Tools",
@@ -283,28 +284,48 @@ class CategoryView(QWidget):
             "developer": "💻 Developer Tools",
             "finance": "💰 Finance",
             "security": "🔒 Security Tools",
-            
         }
-        header = QLabel(cat_names.get(self.category, "Tools"))
+        
+        header_text = cat_names.get(self.category, "Tools")
+        header = QLabel(header_text)
         header.setFont(QFont("Segoe UI", 20, QFont.Bold))
         header.setStyleSheet("color: #00BFA5;")
         layout.addWidget(header)
 
+        # 3. Scroll Area setup
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setStyleSheet("background: transparent;")
 
+        # 4. Grid Container
+        # We use a container widget with a QVBoxLayout to hold the grid and a spacer
         grid_widget = QWidget()
-        grid = QGridLayout(grid_widget)
-        grid.setSpacing(16)
+        grid_widget.setStyleSheet("background: transparent;")
+        
+        container_layout = QVBoxLayout(grid_widget)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(12)
+
+        # 5. The Grid
+        grid = QGridLayout()
+        grid.setSpacing(12)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        
+        # Pull tools for this specific category
+        tools = TOOL_CARDS.get(self.category, [])
 
         for i, (icon, name, desc, tool_id) in enumerate(tools):
             card = ToolCard(icon, name, desc, tool_id)
             card.clicked.connect(self.tool_selected.emit)
-            grid.addWidget(card, i // 4, i % 4)
+            # Use 5 columns to match the Dashboard's horizontal density
+            grid.addWidget(card, i // 5, i % 5)
+
+        # 6. Final Assembly
+        container_layout.addLayout(grid)
+        
+        # This push the grid to the top, preventing the "clamped" look
+        container_layout.addStretch() 
 
         scroll.setWidget(grid_widget)
         layout.addWidget(scroll)
