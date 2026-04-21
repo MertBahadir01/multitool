@@ -52,6 +52,7 @@ class SidebarButton(QPushButton):
 
 class Sidebar(QWidget):
     category_changed = Signal(str)
+    logout_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -80,9 +81,30 @@ class Sidebar(QWidget):
         layout.addStretch()
 
         # Version
-        ver = QLabel("v1.0.0")
+        ver = QLabel("v1.0.23")
         ver.setStyleSheet("color: #555555; font-size: 11px; padding-left: 12px;")
         layout.addWidget(ver)
+
+        # Logout button
+        btn_logout = QPushButton("  🚪  Logout")
+        btn_logout.setFixedHeight(40)
+        btn_logout.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #888888;
+                border: none;
+                border-radius: 6px;
+                text-align: left;
+                padding-left: 12px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: #3A1A1A;
+                color: #F44336;
+            }
+        """)
+        btn_logout.clicked.connect(self.logout_requested.emit)
+        layout.addWidget(btn_logout)
 
         # Select dashboard by default
         self._buttons[0].setChecked(True)

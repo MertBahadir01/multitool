@@ -7,6 +7,7 @@ from database.database import get_connection
 class AuthManager:
     def __init__(self):
         self.current_user = None
+        self._logout_callbacks = []
 
     def register(self, username: str, password: str) -> tuple[bool, str]:
         if not username or not password:
@@ -43,7 +44,27 @@ class AuthManager:
             return False, f"Login error: {e}"
 
     def logout(self):
+        """Clear all session state and notify registered callbacks."""
         self.current_user = None
+        for cb in list(self._logout_callbacks):
+            try:
+                cb()
+            except Exception:
+                pass
+
+    def register_logout_callback(self, callback):
+        """Register a callable to be invoked on logout."""
+        self._logout_callbacks.append(callback)
+
+    def unregister_logout_callback(self, callback):
+        """Remove a previously registered logout callback."""
+        try:
+            self._logout_callbacks.remove(callback)
+        except ValueError:
+            pass
+
+    def is_logged_in(self) -> bool:
+        return self.current_user is not None
 
     def get_user_id(self):
         return self.current_user["id"] if self.current_user else None

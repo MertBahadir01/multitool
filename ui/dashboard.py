@@ -46,7 +46,6 @@ TOOL_CARDS = {
         ("👻", "Pac-Man",         "Eat dots, avoid ghosts",          "pac_man"),
     ],
     "utility": [
-        ("📓", "Notebook", "Encrypted notes per person", "notebook"),
         ("📒", "Quick Notes",     "Fast notes with tags and images",    "notes_app"),
         ("🕐", "Clock",           "World clocks, stopwatch & alarms",   "clock_app"),
         ("✅", "Task Manager", "Lists, tasks, subtasks & deadlines", "task_manager"),
@@ -112,6 +111,7 @@ TOOL_CARDS = {
     ],
     "security": [
         ("🔐", "Password Vault", "Secure password manager", "password_vault"),
+        ("📓", "Notebook", "Encrypted notes per person", "notebook"),
     ],
 }
 

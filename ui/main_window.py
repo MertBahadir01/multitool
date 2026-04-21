@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QLabel, QSizePolicy, QStatusBar, QMessageBox
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QAction
+from PySide6.QtGui import QFont, QAction, QKeySequence, QShortcut
 from ui.sidebar import Sidebar
 from ui.dashboard import Dashboard, CategoryView
 from core.auth_manager import auth_manager
@@ -121,8 +121,15 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1200, 750)
         self._current_tool_widget = None
         self._tool_cache = {}
+        self._logout_callback = None
+        self._close_callback = None
         self._build_ui()
         self._setup_statusbar()
+        self._setup_fullscreen_shortcut()
+
+    # ------------------------------------------------------------------
+    # UI Construction
+    # ------------------------------------------------------------------
 
     def _build_ui(self):
         central = QWidget()
@@ -133,6 +140,7 @@ class MainWindow(QMainWindow):
 
         self.sidebar = Sidebar()
         self.sidebar.category_changed.connect(self._on_category)
+        self.sidebar.logout_requested.connect(self._on_logout_requested)
         layout.addWidget(self.sidebar)
 
         self.content_stack = QStackedWidget()
@@ -153,15 +161,33 @@ class MainWindow(QMainWindow):
         sb = self.statusBar()
         user = auth_manager.current_user
         username = user["username"] if user else "Guest"
-        self._status_lbl = QLabel(f"  👤 Logged in as: {username}   |   ⚙ MultiTool Studio v1.0.0")
+        self._status_lbl = QLabel(f"  👤 Logged in as: {username}   |   ⚙ MultiTool Studio v1.0.23")
         self._status_lbl.setStyleSheet("color: #888888;")
         sb.addWidget(self._status_lbl)
+
+    def _setup_fullscreen_shortcut(self):
+        """Bind F11 to toggle maximized / normal window state."""
+        shortcut = QShortcut(QKeySequence("F11"), self)
+        shortcut.activated.connect(self._toggle_fullscreen)
+
+    # ------------------------------------------------------------------
+    # Full-screen helpers
+    # ------------------------------------------------------------------
+
+    def _toggle_fullscreen(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    # ------------------------------------------------------------------
+    # Navigation
+    # ------------------------------------------------------------------
 
     def _on_category(self, cat_id):
         if cat_id == "dashboard":
             self.content_stack.setCurrentIndex(0)
         else:
-            # Show category view
             cat_key = f"cat_{cat_id}"
             if cat_key not in self._tool_cache:
                 cv = CategoryView(cat_id)
@@ -189,5 +215,59 @@ class MainWindow(QMainWindow):
         tool_name = getattr(TOOL_REGISTRY[tool_id], "name", tool_id)
         self.statusBar().showMessage(f"  📂 {tool_name}", 3000)
 
+    # ------------------------------------------------------------------
+    # Logout
+    # ------------------------------------------------------------------
+
+    def set_logout_callback(self, callback):
+        """Register the function main.py should call to show login again."""
+        self._logout_callback = callback
+
+    def set_close_callback(self, callback):
+        """Register the function main.py should call when window is closed normally."""
+        self._close_callback = callback
+
+    def _on_logout_requested(self):
+        """Ask for confirmation, then perform logout."""
+        reply = QMessageBox.question(
+            self,
+            "Confirm Logout",
+            "Are you sure you want to log out?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        self._do_logout()
+
+    def _do_logout(self):
+        """Clear all tool state, wipe session, and hand control back to main."""
+        # Reset content to dashboard so no protected tool remains visible
+        self.content_stack.setCurrentIndex(0)
+
+        # Destroy every cached tool widget to remove data from memory
+        for widget in self._tool_cache.values():
+            try:
+                self.tool_container.removeWidget(widget)
+                widget.hide()
+                widget.deleteLater()
+            except Exception:
+                pass
+        self._tool_cache.clear()
+        self._current_tool_widget = None
+
+        # Clear auth session (also fires any registered callbacks)
+        auth_manager.logout()
+
+        # Delegate back to main.py to show login window
+        if self._logout_callback:
+            self._logout_callback()
+
+    # ------------------------------------------------------------------
+    # Window events
+    # ------------------------------------------------------------------
+
     def closeEvent(self, event):
         super().closeEvent(event)
+        if self._close_callback:
+            self._close_callback()
