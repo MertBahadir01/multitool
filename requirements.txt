@@ -23,17 +23,17 @@ requests>=2.31.0                # HTTP client — finance APIs, IP info, site ch
 # ── Clipboard ────────────────────────────────────────────────────────────────
 pyperclip>=1.8.2                # Cross-platform clipboard access
 
-# ── Data ─────────────────────────────────────────────────────────────────────
-pandas>=2.0.0                   # Used by data export / analysis tools
+# ── System Monitoring ─────────────────────────────────────────────────────────
+psutil>=7.0.0                   # CPU, RAM, disk usage monitoring (Port Monitor Live)
 
-# ── Build ─────────────────────────────────────────────────────────────────────
-PyInstaller>=6.0.0              # Executable packaging (run: pyinstaller main.spec)
+# ── Data Processing ──────────────────────────────────────────────────────────
+pandas>=2.0.0                   # Data export / analysis tools
 
-pip install requests
+# ── Data Visualization ───────────────────────────────────────────────────────
+matplotlib>=3.10.5              # Charts, graphs, data visualization (Data Chart Builder)
 
-pip install cryptography   # File Encryptor
-pip install psutil         # Port Monitor Live
-pip install matplotlib     # Data Chart Builder
+# ── Build / Packaging ────────────────────────────────────────────────────────
+PyInstaller>=6.0.0              # Build executable (.exe) from project
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OPTIONAL — install only if you need these specific tools
