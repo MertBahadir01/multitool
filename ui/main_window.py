@@ -5,11 +5,11 @@ from PySide6.QtWidgets import (
     QLabel, QSizePolicy, QStatusBar, QMessageBox
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QAction, QKeySequence, QShortcut
+from PySide6.QtGui import QFont, QAction, QKeySequence, QShortcut, QIcon
 from ui.sidebar import Sidebar
 from ui.dashboard import Dashboard, CategoryView
 from core.auth_manager import auth_manager
-
+import os
 
 TOOL_REGISTRY = {}
 
@@ -130,6 +130,10 @@ def _register_tools():
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "icom.ico")
+        self.setWindowIcon(QIcon(icon_path))
+
         _register_tools()
         self.setWindowTitle("MultiTool Studio")
         self.setMinimumSize(1200, 750)

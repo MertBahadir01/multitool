@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt, QEventLoop
+from PySide6.QtGui import QIcon
 
 from database.database import init_database
 from ui.theme import STYLESHEET
@@ -50,6 +51,10 @@ def run_main_window(app: QApplication, stylesheet: str):
 
 def main():
     app = QApplication(sys.argv)
+
+    app.setWindowIcon(QIcon("icom.ico")) 
+    
+    
     app.setApplicationName("MultiTool Studio")
     app.setApplicationVersion("1.0.0")
     app.setStyleSheet(STYLESHEET)
