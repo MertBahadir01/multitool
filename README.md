@@ -388,3 +388,19 @@ MIT License — free to use, modify, and distribute.
 ## 🙏 Credits
 
 Built with [PySide6](https://doc.qt.io/qtforpython/), [MediaPipe](https://mediapipe.dev/), [OpenCV](https://opencv.org/), [CoinGecko API](https://www.coingecko.com/en/api), [ExchangeRate-API](https://www.exchangerate-api.com/), and [Yahoo Finance](https://finance.yahoo.com/).
+
+
+
+
+
+STYLESHEET WARNING FIX:
+------------------------
+The "Could not parse stylesheet" errors are caused by inline setStyleSheet()
+calls on QPushButton that use properties not supported at widget level
+(e.g. font-size, font-weight inside a widget-level stylesheet without
+a proper selector). All new tools avoid this — they use only
+color: and background-color: in inline styles, and rely on the global
+theme for everything else. If you see the warning in existing tools,
+look for QPushButton.setStyleSheet("font-weight: bold; ...") and either
+remove the unsupported properties or wrap them in a selector:
+  btn.setStyleSheet("QPushButton { font-weight: bold; }")

@@ -53,10 +53,14 @@ TOOL_CARDS = {
         ("🎬", "Screen Recorder", "Record screen & export as GIF",      "screen_recorder"),
         ("📱", "QR Generator", "Generate QR codes from text", "qr_generator"),
         ("📷", "QR Scanner", "Decode QR codes from images", "qr_scanner"),
-        ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
         ("🎲", "Random Number", "Generate random numbers", "random_number"),
         ("🔗", "UUID Generator", "Generate UUIDs", "uuid_generator"),
         ("🔢", "Calculator", "Calculator with history", "calculator"),
+        ("📋", "Clipboard Manager", "Save and restore clipboard history", "clipboard_manager"),
+        ("⌨️", "Text Expander", "Shortcuts that expand to full text", "text_expander"),
+        ("🎯", "Focus Mode", "Pomodoro focus timer with session logging", "focus_mode"),
+        ("⚡", "Typing Speed Test", "Measure your WPM and accuracy", "typing_speed_test"),
+        ("💪", "Habit Tracker", "Track daily habits and streaks", "habit_tracker"),
     ],
     "file": [
         ("🗂️", "File Manager",    "Browse, duplicate scan & cleaner",  "file_manager"),
@@ -65,6 +69,9 @@ TOOL_CARDS = {
         ("✏️", "Batch Renamer", "Rename files in bulk", "batch_renamer"),
         ("📊", "Size Analyzer", "Analyze folder sizes", "file_size_analyzer"),
         ("📄", "Text Merger", "Merge text files", "text_merger"),
+        ("🗂️", "File Organizer", "Auto-sort files into subfolders", "smart_file_organizer"),
+        ("🔍", "Duplicate Finder", "Find identical files by content hash", "duplicate_file_finder"),
+        ("🔒", "File Encryptor", "Encrypt and decrypt files with a password", "file_encryptor"),
     ],
     "media": [
         ("🎵", "MP4 → MP3", "Extract audio from video", "mp4_to_mp3"),
@@ -79,6 +86,8 @@ TOOL_CARDS = {
         ("🔗", "URL Shortener",      "Shorten or expand URLs",          "url_shortener"),
         ("📸", "Website Screenshot", "Capture screenshots of websites", "website_screenshot"),
         ("🔍", "Port Scanner",       "Multithreaded TCP port scanner",  "port_scanner"),
+        ("📡", "Port Monitor Live", "Live view of active network connections", "port_monitor_live"),
+        ("🌐", "Website Change Tracker", "Detect when websites update", "website_change_tracker"),
     ],
     "developer": [
         ("🖼️", "Image ↔ Base64", "Convert images to Base64 and back", "image_base64"),
@@ -87,6 +96,9 @@ TOOL_CARDS = {
         ("📋", "JSON Formatter", "Format and validate JSON", "json_formatter"),
         ("🔄", "Base64", "Encode/decode Base64", "base64_tool"),
         ("🕒", "Timestamp", "Convert Unix timestamps", "timestamp_converter"),
+        ("🔤", "Regex Tester", "Test regular expressions with live highlighting", "regex_tester"),
+        ("📊", "Diff Checker", "Compare two texts side by side", "diff_checker"),
+        ("📈", "Data Chart Builder", "Create charts from your data", "data_chart_builder"),
     ],
     "finance": [
         ("🏠", "Finance Dashboard",    "Central finance overview",          "finance_dashboard"),
@@ -112,9 +124,11 @@ TOOL_CARDS = {
     "security": [
         ("🔐", "Password Vault", "Secure password manager", "password_vault"),
         ("📓", "Notebook", "Encrypted notes per person", "notebook"),
+        ("🛡️", "Password Strength", "Analyze password strength and entropy", "password_strength_analyzer"),
+        ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
+
     ],
 }
-
 ALL_TOOLS = []
 for cat, tools in TOOL_CARDS.items():
     for t in tools:
@@ -250,7 +264,7 @@ class CategoryView(QWidget):
 
         tools = TOOL_CARDS.get(self.category, [])
         cat_names = {
-            "ai": "🤖 AI Tools",
+            #"ai": "🤖 AI Tools",
             "study": "📚 Study Tools",
             "games": "🎮 Games",
             "utility": "🔧 Utility Tools",

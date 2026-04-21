@@ -102,6 +102,20 @@ def _register_tools():
         ("port_scanner",       "tools.port_scanner",       "PortScannerTool"),
         ("sql_studio",         "tools.sql_studio",         "SQLStudioTool"),
         ("color_picker",       "tools.color_picker",       "ColorPickerTool"),
+        ("smart_file_organizer",     "tools.smart_file_organizer",     "SmartFileOrganizerTool"),
+        ("duplicate_file_finder",    "tools.duplicate_file_finder",    "DuplicateFileFinderTool"),
+        ("clipboard_manager",        "tools.clipboard_manager",        "ClipboardManagerTool"),
+        ("text_expander",            "tools.text_expander",            "TextExpanderTool"),
+        ("password_strength_analyzer","tools.password_strength_analyzer","PasswordStrengthAnalyzerTool"),
+        ("file_encryptor",           "tools.file_encryptor",           "FileEncryptorTool"),
+        ("port_monitor_live",        "tools.port_monitor_live",        "PortMonitorLiveTool"),
+        ("regex_tester",             "tools.regex_tester",             "RegexTesterTool"),
+        ("diff_checker",             "tools.diff_checker",             "DiffCheckerTool"),
+        ("habit_tracker",            "tools.habit_tracker",            "HabitTrackerTool"),
+        ("focus_mode",               "tools.focus_mode",               "FocusModeTool"),
+        ("typing_speed_test",        "tools.typing_speed_test",        "TypingSpeedTestTool"),
+        ("data_chart_builder",       "tools.data_chart_builder",       "DataChartBuilderTool"),
+        ("website_change_tracker",   "tools.website_change_tracker",   "WebsiteChangeTrackerTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:

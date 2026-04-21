@@ -1,0 +1,1 @@
+from .clipboard_manager_tool import ClipboardManagerTool

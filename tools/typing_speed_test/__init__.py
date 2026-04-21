@@ -1,0 +1,1 @@
+from .typing_speed_test_tool import TypingSpeedTestTool

@@ -31,6 +31,10 @@ PyInstaller>=6.0.0              # Executable packaging (run: pyinstaller main.sp
 
 pip install requests
 
+pip install cryptography   # File Encryptor
+pip install psutil         # Port Monitor Live
+pip install matplotlib     # Data Chart Builder
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OPTIONAL — install only if you need these specific tools
 # ─────────────────────────────────────────────────────────────────────────────
