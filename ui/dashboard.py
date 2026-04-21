@@ -129,6 +129,7 @@ TOOL_CARDS = {
 
     ],
 }
+
 ALL_TOOLS = []
 for cat, tools in TOOL_CARDS.items():
     for t in tools:
@@ -190,7 +191,7 @@ class Dashboard(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        # Header
+        # --- Header ---
         header = QLabel("Welcome to MultiTool Studio")
         header.setFont(QFont("Segoe UI", 22, QFont.Bold))
         header.setStyleSheet("color: #00BFA5;")
@@ -200,39 +201,74 @@ class Dashboard(QWidget):
         sub.setStyleSheet("color: #888888; font-size: 13px;")
         layout.addWidget(sub)
 
-        stats = QHBoxLayout()
+        # --- Scrollable Stats Row ---
+        # This prevents the window from becoming too wide when many categories exist
+        stats_scroll = QScrollArea()
+        stats_scroll.setWidgetResizable(True)
+        stats_scroll.setFixedHeight(110) # Fixed height for the stats bar
+        stats_scroll.setFrameShape(QFrame.NoFrame)
+        stats_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        stats_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        stats_scroll.setStyleSheet("background: transparent;")
 
-        # Stats row loop
-        for count, label, color in [
-            (len(ALL_TOOLS), "Total Tools", "#00BFA5"),
-            (len(TOOL_CARDS.get("study", [])), "Study Tools", "#9C27B0"), # Dynamic count
-            (len(TOOL_CARDS.get("security", [])), "Security Tools", "#F44336"),
-            (len(TOOL_CARDS.get("media", [])), "Media Tools", "#FF9800"),
-        ]:
+        stats_container = QWidget()
+        stats_layout = QHBoxLayout(stats_container)
+        stats_layout.setContentsMargins(0, 0, 0, 10)
+        stats_layout.setSpacing(12)
+
+        # Color palette for categories
+        colors = ["#9C27B0", "#F44336", "#FF9800", "#4CAF50", "#2196F3", "#00BCD4", "#E91E63", "#FFEB3B", "#795548"]
+        
+        # Prepare data for the loop: (Count, Label, Color)
+        stats_items = [(len(ALL_TOOLS), "Total Tools", "#00BFA5")]
+        
+        # Mapping category IDs to readable names
+        cat_map = {
+            "study": "Study", "games": "Games", "utility": "Utility", 
+            "file": "File", "media": "Media", "network": "Network", 
+            "developer": "Dev", "finance": "Finance", "security": "Security"
+        }
+
+        for i, (cat_id, tools) in enumerate(TOOL_CARDS.items()):
+            color = colors[i % len(colors)]
+            display_name = f"{cat_map.get(cat_id, cat_id.title())} Tools"
+            stats_items.append((len(tools), display_name, color))
+
+        for count, label, color in stats_items:
             card = QFrame()
-            card.setFixedHeight(80) # Increased slightly
-            card.setStyleSheet(f"background: #252526; border: 2px solid {color}; border-radius: 8px;")
+            card.setFixedSize(140, 80)
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background: #252526; 
+                    border: 1px solid {color}; 
+                    border-radius: 8px;
+                }}
+            """)
 
             cl = QVBoxLayout(card)
             cl.setContentsMargins(10, 5, 10, 5)
-            cl.setSpacing(0) # Reduce space between number and label
-            cl.setAlignment(Qt.AlignCenter) # Center everything
+            cl.setSpacing(0)
+            cl.setAlignment(Qt.AlignCenter)
 
             n = QLabel(str(count))
             n.setFont(QFont("Segoe UI", 18, QFont.Bold))
-            n.setAlignment(Qt.AlignCenter) # Center the number
             n.setStyleSheet(f"color: {color}; border: none; background: transparent;")
+            n.setAlignment(Qt.AlignCenter)
 
             l = QLabel(label)
-            l.setAlignment(Qt.AlignCenter) # Center the label
-            l.setStyleSheet("color: #AAAAAA; font-size: 10px; border: none; background: transparent;")
+            l.setFont(QFont("Segoe UI", 9))
+            l.setStyleSheet("color: #AAAAAA; border: none; background: transparent;")
+            l.setAlignment(Qt.AlignCenter)
 
             cl.addWidget(n)
             cl.addWidget(l)
-            stats.addWidget(card)
-        layout.addLayout(stats)
+            stats_layout.addWidget(card)
 
-        # All tools grid
+        stats_layout.addStretch() # Push cards to the left
+        stats_scroll.setWidget(stats_container)
+        layout.addWidget(stats_scroll)
+
+        # --- All Tools Grid ---
         grid_label = QLabel("All Tools")
         grid_label.setFont(QFont("Segoe UI", 15, QFont.Bold))
         grid_label.setStyleSheet("color: #CCCCCC; margin-top: 8px;")
@@ -241,10 +277,16 @@ class Dashboard(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        # Added horizontal scroll policy to match your "clipped" fix
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet("background: transparent;")
 
         grid_widget = QWidget()
-        grid = QGridLayout(grid_widget)
+        # Using a vertical layout inside the grid_widget to hold the grid + stretch
+        grid_container_layout = QVBoxLayout(grid_widget)
+        grid_container_layout.setContentsMargins(0, 0, 0, 0)
+
+        grid = QGridLayout()
         grid.setSpacing(12)
         grid.setContentsMargins(0, 0, 0, 0)
 
@@ -253,9 +295,11 @@ class Dashboard(QWidget):
             card.clicked.connect(self.tool_selected.emit)
             grid.addWidget(card, i // 5, i % 5)
 
+        grid_container_layout.addLayout(grid)
+        grid_container_layout.addStretch() # Prevents grid rows from stretching vertically
+
         scroll.setWidget(grid_widget)
         layout.addWidget(scroll)
-
 
 class CategoryView(QWidget):
     """Shows tools filtered by category."""
