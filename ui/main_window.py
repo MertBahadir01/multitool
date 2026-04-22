@@ -1,18 +1,82 @@
 """Main application window."""
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
-    QLabel, QSizePolicy, QStatusBar, QMessageBox
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget,
+    QLabel, QSizePolicy, QStatusBar, QMessageBox, QPushButton, QFrame
 )
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QAction, QKeySequence, QShortcut, QIcon
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QFont, QAction, QKeySequence, QShortcut, QIcon, QKeyEvent
 from ui.sidebar import Sidebar
 from ui.dashboard import Dashboard, CategoryView
 from core.auth_manager import auth_manager
 import os
-from core import config 
+from core import config
 
 TOOL_REGISTRY = {}
+
+
+class ToolFrame(QWidget):
+    """Thin chrome wrapper placed around every tool widget.
+
+    Adds a consistent header bar containing:
+      • ← Back button (top-left, before the tool name)
+      • Tool name label
+    The inner tool widget fills the remaining space unchanged.
+    """
+
+    back_requested = Signal()
+
+    _BACK_CSS = """
+        QPushButton {
+            background: transparent;
+            color: #888888;
+            border: 1px solid #3E3E3E;
+            border-radius: 6px;
+            padding: 4px 14px;
+            font-size: 13px;
+        }
+        QPushButton:hover {
+            background: #1A3A35;
+            color: #00BFA5;
+            border: 1px solid #00BFA5;
+        }
+        QPushButton:pressed {
+            background: #0D2D28;
+        }
+    """
+
+    def __init__(self, tool_widget: QWidget, tool_name: str, parent=None):
+        super().__init__(parent)
+        self._tool_widget = tool_widget
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ── Header bar ────────────────────────────────────────────────
+        header = QWidget()
+        header.setFixedHeight(48)
+        header.setStyleSheet("background: #1E1E1E; border-bottom: 1px solid #2D2D2D;")
+        h_lay = QHBoxLayout(header)
+        h_lay.setContentsMargins(16, 0, 16, 0)
+        h_lay.setSpacing(12)
+
+        back_btn = QPushButton("← Back")
+        back_btn.setFixedHeight(30)
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setToolTip("Go back to categories  (ESC / Backspace)")
+        back_btn.setStyleSheet(self._BACK_CSS)
+        back_btn.clicked.connect(self.back_requested.emit)
+        h_lay.addWidget(back_btn)
+
+        name_lbl = QLabel(tool_name)
+        name_lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        name_lbl.setStyleSheet("color: #CCCCCC; background: transparent;")
+        h_lay.addWidget(name_lbl)
+        h_lay.addStretch()
+
+        root.addWidget(header)
+        root.addWidget(tool_widget, stretch=1)
 
 
 def _register_tools():
@@ -142,9 +206,11 @@ class MainWindow(QMainWindow):
         self._tool_cache = {}
         self._logout_callback = None
         self._close_callback = None
+        self._current_category = None   # tracks which category is active
         self._build_ui()
         self._setup_statusbar()
         self._setup_fullscreen_shortcut()
+        self._setup_navigation_shortcuts()
 
     # ------------------------------------------------------------------
     # UI Construction
@@ -189,6 +255,11 @@ class MainWindow(QMainWindow):
         shortcut = QShortcut(QKeySequence("F11"), self)
         shortcut.activated.connect(self._toggle_fullscreen)
 
+    def _setup_navigation_shortcuts(self):
+        """Bind ESC to always go back; Backspace goes back only when no input is focused."""
+        esc = QShortcut(QKeySequence(Qt.Key_Escape), self)
+        esc.activated.connect(self._go_back)
+
     # ------------------------------------------------------------------
     # Full-screen helpers
     # ------------------------------------------------------------------
@@ -199,6 +270,33 @@ class MainWindow(QMainWindow):
         else:
             self.showMaximized()
 
+    def _go_back(self):
+        """Return from an open tool to its parent category view, or from a
+        category view back to the dashboard.  All three back-navigation
+        methods (ESC, Backspace, Back button) call this single method."""
+        if self.content_stack.currentIndex() == 0:
+            return  # already on dashboard — nothing to do
+
+        current_widget = self.tool_container.currentWidget()
+
+        # If the current widget is a CategoryView, return to dashboard
+        if isinstance(current_widget, CategoryView):
+            self.content_stack.setCurrentIndex(0)
+            self._current_category = None
+            return
+
+        # Otherwise it's a ToolFrame — return to the category view if one is cached
+        if self._current_category:
+            cat_key = f"cat_{self._current_category}"
+            if cat_key in self._tool_cache:
+                self.tool_container.setCurrentWidget(self._tool_cache[cat_key])
+                self.content_stack.setCurrentIndex(1)
+                return
+
+        # Fallback: no category context — go all the way to dashboard
+        self.content_stack.setCurrentIndex(0)
+        self._current_category = None
+
     # ------------------------------------------------------------------
     # Navigation
     # ------------------------------------------------------------------
@@ -206,11 +304,14 @@ class MainWindow(QMainWindow):
     def _on_category(self, cat_id):
         if cat_id == "dashboard":
             self.content_stack.setCurrentIndex(0)
+            self._current_category = None
         else:
+            self._current_category = cat_id
             cat_key = f"cat_{cat_id}"
             if cat_key not in self._tool_cache:
                 cv = CategoryView(cat_id)
                 cv.tool_selected.connect(self._open_tool)
+                cv.back_requested.connect(self._go_back)
                 self._tool_cache[cat_key] = cv
                 self.tool_container.addWidget(cv)
             self.tool_container.setCurrentWidget(self._tool_cache[cat_key])
@@ -224,11 +325,15 @@ class MainWindow(QMainWindow):
             try:
                 cls = TOOL_REGISTRY[tool_id]
                 widget = cls()
-                self._tool_cache[tool_id] = widget
-                self.tool_container.addWidget(widget)
+                tool_name = getattr(cls, "name", tool_id)
+                frame = ToolFrame(widget, tool_name)
+                frame.back_requested.connect(self._go_back)
+                self._tool_cache[tool_id] = frame
+                self.tool_container.addWidget(frame)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not load tool: {e}")
                 return
+        self._current_tool_widget = self._tool_cache[tool_id]
         self.tool_container.setCurrentWidget(self._tool_cache[tool_id])
         self.content_stack.setCurrentIndex(1)
         tool_name = getattr(TOOL_REGISTRY[tool_id], "name", tool_id)
@@ -264,7 +369,7 @@ class MainWindow(QMainWindow):
         # Reset content to dashboard so no protected tool remains visible
         self.content_stack.setCurrentIndex(0)
 
-        # Destroy every cached tool widget to remove data from memory
+        # Destroy every cached widget (ToolFrame wrappers + CategoryViews)
         for widget in self._tool_cache.values():
             try:
                 self.tool_container.removeWidget(widget)
@@ -274,6 +379,7 @@ class MainWindow(QMainWindow):
                 pass
         self._tool_cache.clear()
         self._current_tool_widget = None
+        self._current_category = None
 
         # Clear auth session (also fires any registered callbacks)
         auth_manager.logout()
@@ -290,3 +396,19 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
         if self._close_callback:
             self._close_callback()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handle Backspace for back-navigation when no text input is focused."""
+        if event.key() == Qt.Key_Backspace:
+            focused = self.focusWidget()
+            # Only navigate back if focus is NOT on a typing widget
+            if focused is None or not self._is_input_widget(focused):
+                self._go_back()
+                return
+        super().keyPressEvent(event)
+
+    @staticmethod
+    def _is_input_widget(widget) -> bool:
+        """Return True if the widget is a text-entry field where Backspace should type."""
+        from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox
+        return isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox))

@@ -304,6 +304,7 @@ class Dashboard(QWidget):
 class CategoryView(QWidget):
     """Shows tools filtered by category."""
     tool_selected = Signal(str)
+    back_requested = Signal()   # emitted when the Back button is clicked
 
     def __init__(self, category: str, parent=None):
         super().__init__(parent)
@@ -316,9 +317,37 @@ class CategoryView(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        # 2. Dynamic Header
+        # 2. Header row: Back button + Category title
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
+        header_row.setContentsMargins(0, 0, 0, 0)
+
+        back_btn = QPushButton("← Back")
+        back_btn.setFixedHeight(34)
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setToolTip("Go back to categories")
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #888888;
+                border: 1px solid #3E3E3E;
+                border-radius: 6px;
+                padding: 4px 14px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: #1A3A35;
+                color: #00BFA5;
+                border: 1px solid #00BFA5;
+            }
+            QPushButton:pressed {
+                background: #0D2D28;
+            }
+        """)
+        back_btn.clicked.connect(self.back_requested.emit)
+        header_row.addWidget(back_btn)
+
         cat_names = {
-            #"ai": "🤖 AI Tools",
             "study": "📚 Study Tools",
             "games": "🎮 Games",
             "utility": "🔧 Utility Tools",
@@ -329,12 +358,15 @@ class CategoryView(QWidget):
             "finance": "💰 Finance",
             "security": "🔒 Security Tools",
         }
-        
+
         header_text = cat_names.get(self.category, "Tools")
         header = QLabel(header_text)
         header.setFont(QFont("Segoe UI", 20, QFont.Bold))
         header.setStyleSheet("color: #00BFA5;")
-        layout.addWidget(header)
+        header_row.addWidget(header)
+        header_row.addStretch()
+
+        layout.addLayout(header_row)
 
         # 3. Scroll Area setup
         scroll = QScrollArea()
@@ -343,10 +375,9 @@ class CategoryView(QWidget):
         scroll.setStyleSheet("background: transparent;")
 
         # 4. Grid Container
-        # We use a container widget with a QVBoxLayout to hold the grid and a spacer
         grid_widget = QWidget()
         grid_widget.setStyleSheet("background: transparent;")
-        
+
         container_layout = QVBoxLayout(grid_widget)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(12)
@@ -355,21 +386,17 @@ class CategoryView(QWidget):
         grid = QGridLayout()
         grid.setSpacing(12)
         grid.setContentsMargins(0, 0, 0, 0)
-        
-        # Pull tools for this specific category
+
         tools = TOOL_CARDS.get(self.category, [])
 
         for i, (icon, name, desc, tool_id) in enumerate(tools):
             card = ToolCard(icon, name, desc, tool_id)
             card.clicked.connect(self.tool_selected.emit)
-            # Use 5 columns to match the Dashboard's horizontal density
             grid.addWidget(card, i // 5, i % 5)
 
         # 6. Final Assembly
         container_layout.addLayout(grid)
-        
-        # This push the grid to the top, preventing the "clamped" look
-        container_layout.addStretch() 
+        container_layout.addStretch()
 
         scroll.setWidget(grid_widget)
         layout.addWidget(scroll)
