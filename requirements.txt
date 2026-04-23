@@ -53,14 +53,15 @@ PyInstaller>=6.0.0
 
 # ── Computer Vision / Camera ─────────────────────────────────────────────────
 # Needed by: qr_scanner, face_reader, object_detector
-# opencv-python-headless>=4.8.0
-# numpy>=1.26.0
+opencv-python-headless>=4.8.0
+pyzbar>=0.1.9
+numpy>=1.26.0
 
 # ── OCR (Receipt Scanner) ────────────────────────────────────────────────────
-# pytesseract>=0.3.10
+pytesseract>=0.3.10
 
 # ── MP4 → MP3 (fallback if ffmpeg not installed) ─────────────────────────────
-# moviepy>=1.0.3
+moviepy>=1.0.3
 
 
 # =============================================================================

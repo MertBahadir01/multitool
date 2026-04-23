@@ -7,19 +7,21 @@ from PySide6.QtWidgets import (
     QFileDialog, QTextEdit, QGroupBox, QListWidget
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QImage
 from core.plugin_manager import ToolInterface
 
 try:
     import cv2
     HAS_CV2 = True
 except ImportError:
+    cv2 = None
     HAS_CV2 = False
 
 try:
     from pyzbar import pyzbar
     HAS_PYZBAR = True
 except ImportError:
+    pyzbar = None
     HAS_PYZBAR = False
 
 
@@ -48,10 +50,14 @@ class QRScannerWidget(QWidget):
         layout.addWidget(title)
 
         if not HAS_CV2:
-            layout.addWidget(QLabel("⚠️ OpenCV required: pip install opencv-python"))
+            warn = QLabel("⚠️ OpenCV required: pip install opencv-python")
+            warn.setStyleSheet("color: #FF9800;")
+            layout.addWidget(warn)
         if not HAS_PYZBAR:
-            note = QLabel("⚠️ pyzbar required for QR scanning: pip install pyzbar\n"
-                          "On Windows, also install: https://github.com/NaturalHistoryMuseum/pyzbar")
+            note = QLabel(
+                "⚠️ pyzbar required for QR scanning: pip install pyzbar\n"
+                "On Windows, also install: https://github.com/NaturalHistoryMuseum/pyzbar"
+            )
             note.setStyleSheet("color: #FF9800;")
             layout.addWidget(note)
 
@@ -88,61 +94,92 @@ class QRScannerWidget(QWidget):
         content.addLayout(right, 1)
         layout.addLayout(content, 1)
 
+    def _show_cv_frame(self, frame_bgr):
+        """Convert a BGR numpy frame to a QPixmap and show it in image_label."""
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        h, w, ch = frame_rgb.shape
+        qimg = QImage(frame_rgb.data, w, h, ch * w, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimg)
+        pixmap = pixmap.scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.image_label.setPixmap(pixmap)
+
     def _scan_image(self, img_bgr):
+        """Decode QR/barcodes from a BGR numpy image. Returns list of decoded strings."""
         self.result_list.clear()
         self.decoded_text.clear()
-        if not HAS_PYZBAR:
-            # Try OpenCV QR decoder
-            qr_decoder = cv2.QRCodeDetector()
-            data, points, _ = qr_decoder.detectAndDecode(img_bgr)
+
+        if not HAS_CV2:
+            self.result_list.addItem("OpenCV not installed — cannot scan")
+            return []
+
+        if HAS_PYZBAR:
+            decoded = pyzbar.decode(img_bgr)
+            results = []
+            for obj in decoded:
+                data = obj.data.decode("utf-8")
+                self.result_list.addItem(f"{obj.type}: {data[:60]}")
+                results.append(data)
+            if results:
+                self.decoded_text.setPlainText("\n\n".join(results))
+            else:
+                self.result_list.addItem("No QR code or barcode detected")
+            return results
+        else:
+            # Fall back to OpenCV's built-in QR detector
+            qr_detector = cv2.QRCodeDetector()
+            data, _, _ = qr_detector.detectAndDecode(img_bgr)
             if data:
-                self.result_list.addItem(f"QR Code: {data[:50]}")
+                self.result_list.addItem(f"QR Code: {data[:60]}")
                 self.decoded_text.setPlainText(data)
                 return [data]
             else:
                 self.result_list.addItem("No QR code detected (install pyzbar for better results)")
                 return []
 
-        decoded = pyzbar.decode(img_bgr)
-        results = []
-        for obj in decoded:
-            data = obj.data.decode('utf-8')
-            type_ = obj.type
-            self.result_list.addItem(f"{type_}: {data[:60]}")
-            results.append(data)
-        if results:
-            self.decoded_text.setPlainText('\n\n'.join(results))
-        else:
-            self.result_list.addItem("No QR code or barcode detected")
-        return results
-
     def _open_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open Image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
-        if path and HAS_CV2:
-            img = cv2.imread(path)
-            if img is not None:
-                self._scan_image(img)
-                pixmap = QPixmap(path)
-                pixmap = pixmap.scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.image_label.setPixmap(pixmap)
+        if not HAS_CV2:
+            self.result_list.clear()
+            self.result_list.addItem("OpenCV not installed — cannot open image")
+            return
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Image", "", "Images (*.png *.jpg *.jpeg *.bmp)"
+        )
+        if not path:
+            return
+
+        img = cv2.imread(path)
+        if img is None:
+            self.result_list.clear()
+            self.result_list.addItem("Failed to load image")
+            return
+
+        self._scan_image(img)
+
+        # Show preview using Qt directly (no cv2 conversion needed for display)
+        pixmap = QPixmap(path)
+        pixmap = pixmap.scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.image_label.setPixmap(pixmap)
 
     def _scan_webcam(self):
         if not HAS_CV2:
+            self.result_list.clear()
+            self.result_list.addItem("OpenCV not installed — cannot access webcam")
             return
+
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
+            self.result_list.clear()
             self.result_list.addItem("No webcam found")
             return
+
         ret, frame = cap.read()
         cap.release()
-        if ret:
-            self._scan_image(frame)
-            import cv2
-            import numpy as np
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, c = frame_rgb.shape
-            from PySide6.QtGui import QImage
-            qimg = QImage(frame_rgb.data, w, h, c * w, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qimg)
-            pixmap = pixmap.scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.image_label.setPixmap(pixmap)
+
+        if not ret or frame is None:
+            self.result_list.clear()
+            self.result_list.addItem("Failed to capture frame from webcam")
+            return
+
+        self._scan_image(frame)
+        self._show_cv_frame(frame)
