@@ -539,6 +539,20 @@ def init_database():
         )
     """)
 
+    # ── DB File Storage ───────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS stored_files (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename      TEXT    NOT NULL,
+            original_size INTEGER NOT NULL,
+            stored_size   INTEGER NOT NULL,
+            mime_type     TEXT    NOT NULL DEFAULT '',
+            compressed    INTEGER NOT NULL DEFAULT 0,
+            uploaded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            file_data     BLOB    NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
 

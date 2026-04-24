@@ -90,6 +90,8 @@ TOOL_CARDS = {
         ("🌐", "Website Change Tracker", "Detect when websites update", "website_change_tracker"),
     ],
     "developer": [
+        ("🔌", "TCP/UDP Debugger",   "Send/receive over TCP or UDP",         "tcp_udp_tool"),
+        ("📡", "LAN File Transfer",  "Transfer files over local network",     "lan_file_transfer"),
         ("🖼️", "Image ↔ Base64", "Convert images to Base64 and back", "image_base64"),
         ("🗄️",  "SQL Studio",  "SQLite DB manager — query, browse, export", "sql_studio"),
         ("🎨", "Color Picker", "HEX/RGB/HSL + palette generator",           "color_picker"),
@@ -124,6 +126,7 @@ TOOL_CARDS = {
     "security": [
         ("🔐", "Password Vault", "Secure password manager", "password_vault"),
         ("📓", "Notebook", "Encrypted notes per person", "notebook"),
+        ("🗄️",  "DB File Storage",   "Store & retrieve files in database",   "db_file_storage"),
         ("🛡️", "Password Strength", "Analyze password strength and entropy", "password_strength_analyzer"),
         ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
 

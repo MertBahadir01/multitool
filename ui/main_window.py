@@ -181,6 +181,9 @@ def _register_tools():
         ("typing_speed_test",        "tools.typing_speed_test",        "TypingSpeedTestTool"),
         ("data_chart_builder",       "tools.data_chart_builder",       "DataChartBuilderTool"),
         ("website_change_tracker",   "tools.website_change_tracker",   "WebsiteChangeTrackerTool"),
+        ("tcp_udp_tool",      "tools.tcp_udp_tool",      "TCPUDPTool"),
+        ("lan_file_transfer", "tools.lan_file_transfer",  "LANFileTransferTool"),
+        ("db_file_storage",   "tools.db_file_storage",    "DBFileStorageTool"),
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:
