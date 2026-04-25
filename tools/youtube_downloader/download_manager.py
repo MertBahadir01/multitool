@@ -194,9 +194,33 @@ class DownloadManager(QObject):
         self._fill_slots()
 
     def cancel_all(self):
-        for w in self._workers:
-            w.cancel()
-
+        # 1. Set global cancel flag (IMPORTANT)
+        self._cancelled = True
+    
+        # 2. Cancel all active workers
+        for w in list(self._workers):
+            try:
+                w.cancel()
+            except Exception:
+                pass
+            
+            # optional hard stop if supported
+            if hasattr(w, "terminate"):
+                try:
+                    w.terminate()
+                except Exception:
+                    pass
+                
+        # 3. Clear queue (prevents future starts)
+        if hasattr(self, "_queue"):
+            self._queue.clear()
+    
+        # 4. Reset worker tracking
+        self._workers.clear()
+    
+        # 5. Optional: reset state flags
+        self._running = False
+    
     # ------------------------------------------------------------------
     def _fill_slots(self):
         while self._queue and self._active < self._max:
