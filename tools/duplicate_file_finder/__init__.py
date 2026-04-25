@@ -1,1 +1,2 @@
 from .duplicate_file_finder_tool import DuplicateFileFinderTool
+TOOL_META = {"id": "duplicate_file_finder", "name": "Duplicate File Finder", "category": "file", "widget_class": DuplicateFileFinderTool}

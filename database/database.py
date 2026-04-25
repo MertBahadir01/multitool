@@ -553,6 +553,21 @@ def init_database():
         )
     """)
 
+    # ── YouTube Downloader History ────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS youtube_download_history (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            title     TEXT      NOT NULL DEFAULT '',
+            url       TEXT      NOT NULL DEFAULT '',
+            format    TEXT      NOT NULL DEFAULT '',
+            quality   TEXT      NOT NULL DEFAULT '',
+            size      TEXT      NOT NULL DEFAULT '',
+            status    TEXT      NOT NULL DEFAULT '',
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
     conn.commit()
     conn.close()
 

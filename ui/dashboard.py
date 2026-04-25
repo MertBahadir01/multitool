@@ -74,8 +74,9 @@ TOOL_CARDS = {
         ("🔒", "File Encryptor", "Encrypt and decrypt files with a password", "file_encryptor"),
     ],
     "media": [
-        ("🎵", "MP4 → MP3", "Extract audio from video", "mp4_to_mp3"),
+        ("⬇️", "YouTube Downloader", "Download videos and playlists", "youtube_downloader"),
         ("🎬", "Media Modernizer", "Convert 3gp/avi/bmp to mp4/png", "media_modernizer"),
+        ("🎵", "MP4 → MP3", "Extract audio from video", "mp4_to_mp3"),
         ("🖼️", "Image Converter", "Convert image formats", "image_converter"),
         ("📐", "Image Resizer", "Resize images in bulk", "image_resizer"),
     ],

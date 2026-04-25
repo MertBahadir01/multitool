@@ -43,6 +43,10 @@ pandas>=2.0.0
 matplotlib>=3.10.5
 
 
+# ── Media Downloading ────────────────────────────────────────────────────────
+yt-dlp>=2024.1.0
+
+
 # ── Packaging ────────────────────────────────────────────────────────────────
 PyInstaller>=6.0.0
 
@@ -67,5 +71,5 @@ moviepy>=1.0.3
 # =============================================================================
 # SYSTEM TOOLS (install separately)
 # =============================================================================
-# ffmpeg      → mp4_to_mp3, screen_recorder
+# ffmpeg      → mp4_to_mp3, screen_recorder, youtube_downloader (MP3 extraction & MP4 merging)
 # Tesseract   → OCR (pytesseract)

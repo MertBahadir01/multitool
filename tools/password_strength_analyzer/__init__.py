@@ -1,1 +1,2 @@
 from .password_strength_analyzer_tool import PasswordStrengthAnalyzerTool
+TOOL_META = {"id": "password_strength_analyzer", "name": "Password Strength Analyzer", "category": "security", "widget_class": PasswordStrengthAnalyzerTool}

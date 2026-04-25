@@ -1,1 +1,2 @@
 from .website_change_tracker_tool import WebsiteChangeTrackerTool
+TOOL_META = {"id": "website_change_tracker", "name": "Website Change Tracker", "category": "network", "widget_class": WebsiteChangeTrackerTool}
