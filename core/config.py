@@ -1,7 +1,7 @@
 """Application configuration constants."""
 
 APP_NAME = "MultiTool Studio"
-APP_VERSION = "1.0.38"
+APP_VERSION = "1.0.39"
 DB_PATH = "multitool_studio.db"
 CLIPBOARD_CLEAR_DELAY = 30  # seconds
 AUTO_LOCK_MINUTES = 10
