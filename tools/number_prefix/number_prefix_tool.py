@@ -679,160 +679,190 @@ class _IncreaseAfterTab(QWidget):
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — Ordering / Numbering
 # ══════════════════════════════════════════════════════════════════════════════
+#
+# Design principles that fix the previous bugs:
+#
+#  1. Each item carries a stable integer _uid so drag-drop can never confuse
+#     two files that share the same stem/ext.
+#  2. The drag-drop table NEVER relies on rowsMoved (which fires mid-drag
+#     before Qt has settled the model).  Instead we override dropEvent,
+#     compute the new order ourselves from the settled table state, and
+#     then fully repopulate the table from self._items.  This is the only
+#     reliable way to sync after an InternalMove drop.
+#  3. The editable column stores the UID as UserRole data so _on_cell_changed
+#     can look up the item by identity, not by row position.
+#  4. _populate_table() is the single source of truth — every operation
+#     (move-up, move-down, inline-edit, drop) mutates self._items and then
+#     calls _populate_table() + _refresh_display().  No partial syncs.
+# ─────────────────────────────────────────────────────────────────────────────
 
-class _OrderingTable(QTableWidget):
-    """
-    A drag-drop table that re-emits a signal after rows are moved,
-    so the parent tab can refresh numbering.
-    """
-    rows_reordered = Signal()
+_uid_counter = 0
 
-    def __init__(self, parent=None):
-        super().__init__(0, 4, parent)
-        self.setHorizontalHeaderLabels(["№", "Filename", "Ext", "New number"])
-        hh = self.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.verticalHeader().setVisible(False)
-        self.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.setSelectionMode(QAbstractItemView.SingleSelection)
+def _next_uid():
+    global _uid_counter
+    _uid_counter += 1
+    return _uid_counter
+
+
+class _DragDropTable(QTableWidget):
+    """
+    QTableWidget with a corrected dropEvent.
+    Qt's built-in InternalMove drops rows but the rowsMoved signal fires
+    before the model is fully settled, making it unsafe to read back the
+    new order.  We intercept dropEvent, extract the drop destination, and
+    emit our own signal with the (source_row, dest_row) pair.  The parent
+    tab then mutates self._items directly and repopulates the table.
+    """
+    row_dropped = Signal(int, int)   # (from_row, to_row)
+
+    def __init__(self, cols, parent=None):
+        super().__init__(0, cols, parent)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.setDragDropOverwriteMode(False)
-        self.setStyleSheet("""
-            QTableWidget {
-                background:#1A1A1A; border:none; font-size:12px; gridline-color:#2A2A2A;
-            }
-            QHeaderView::section {
-                background:#252525; color:#888; border:none; padding:6px;
-                font-size:11px; font-weight:bold;
-            }
-            QTableWidget::item { padding:4px 8px; }
-            QTableWidget::item:selected { background:#1E3A3A; }
-        """)
-        self.model().rowsMoved.connect(self._on_reorder)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.verticalHeader().setVisible(False)
 
-    def _on_reorder(self, *_):
-        self.rows_reordered.emit()
+    def dropEvent(self, event):
+        # Which row is being dragged?
+        src_row = self.currentRow()
+        if src_row < 0:
+            event.ignore()
+            return
+
+        # Where is the drop indicator pointing?
+        drop_row = self.rowAt(event.position().toPoint().y())
+        if drop_row < 0:
+            drop_row = self.rowCount() - 1   # dropped below last row
+
+        # Clamp and skip no-ops
+        drop_row = max(0, min(drop_row, self.rowCount() - 1))
+        if drop_row == src_row:
+            event.ignore()
+            return
+
+        event.accept()
+        self.row_dropped.emit(src_row, drop_row)
 
 
 class _OrderingTab(QWidget):
     """
-    Advanced ordering & numbering control:
-    - Load files from a folder
-    - Drag-drop rows to reorder
-    - Move Up / Move Down buttons
-    - Inline editable "New number" column — editing a number shifts all items
-      between the old and new position to close the gap
-    - Live preview of resulting filenames
-    - Apply renames + Undo
+    Tab 4 — drag/drop reorder with gap-free sequential numbering.
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # _items: list of dicts {filename, stem, ext, orig_num, sep}
-        self._items     = []
+        self._items     = []   # list of dicts; each has a unique _uid
         self._last_jobs = []
         self._worker    = None
-        self._editing   = False   # guard against recursive cell-change signals
+        self._editing   = False
         self._build_ui()
 
-    # ── UI construction ───────────────────────────────────────────────────────
+    # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(16, 16, 16, 16)
         lay.setSpacing(12)
 
-        # Folder bar
         self._folder_bar = _FolderBar(self._reload)
         lay.addWidget(self._folder_bar)
 
-        # Info banner
         info = QFrame()
         info.setStyleSheet(
             "background:#1A1A2A;border-radius:6px;border:1px solid #2A2A4A;")
         il = QHBoxLayout(info); il.setContentsMargins(12, 8, 12, 8)
         il.addWidget(_lbl(
-            "Drag rows to reorder  •  Edit the '№' column to jump an item to that position  "
-            "•  Use ↑ / ↓ buttons to nudge one step  •  All other numbers shift automatically.",
+            "Drag rows to reorder  •  Edit the '№' column to jump an item  "
+            "•  ↑ / ↓ buttons nudge one step  •  Numbers update automatically.",
             "#7986CB", 12))
         lay.addWidget(info)
 
-        # Options row
-        opt_row = QHBoxLayout(); opt_row.setSpacing(16)
-        opt_row.addWidget(_lbl("Start at:"))
+        # Options
+        opt = QHBoxLayout(); opt.setSpacing(16)
+        opt.addWidget(_lbl("Start at:"))
         self._start = QSpinBox(); self._start.setRange(0, 99999)
         self._start.setValue(1); self._start.setFixedWidth(70)
-        self._start.setStyleSheet(_inp()); self._start.valueChanged.connect(self._refresh_numbers)
-        opt_row.addWidget(self._start)
+        self._start.setStyleSheet(_inp())
+        self._start.valueChanged.connect(self._refresh_display)
+        opt.addWidget(self._start)
 
-        opt_row.addWidget(_lbl("Digits:"))
+        opt.addWidget(_lbl("Digits:"))
         self._digits = QSpinBox(); self._digits.setRange(1, 6)
         self._digits.setValue(3); self._digits.setFixedWidth(60)
-        self._digits.setStyleSheet(_inp()); self._digits.valueChanged.connect(self._refresh_numbers)
-        opt_row.addWidget(self._digits)
+        self._digits.setStyleSheet(_inp())
+        self._digits.valueChanged.connect(self._refresh_display)
+        opt.addWidget(self._digits)
 
-        opt_row.addWidget(_lbl("Separator:"))
+        opt.addWidget(_lbl("Separator:"))
         self._sep = QComboBox(); self._sep.addItems(SEP_LABELS)
         self._sep.setFixedWidth(160); self._sep.setStyleSheet(_inp())
-        self._sep.currentIndexChanged.connect(self._refresh_numbers)
-        opt_row.addWidget(self._sep)
+        self._sep.currentIndexChanged.connect(self._refresh_display)
+        opt.addWidget(self._sep)
 
         self._strip_chk = QCheckBox("Strip existing prefix")
         self._strip_chk.setChecked(True)
         self._strip_chk.setStyleSheet("color:#888;font-size:12px;")
         self._strip_chk.stateChanged.connect(self._reload)
-        opt_row.addWidget(self._strip_chk)
+        opt.addWidget(self._strip_chk)
 
-        opt_row.addWidget(_lbl("Extensions:"))
+        opt.addWidget(_lbl("Extensions:"))
         self._ext_edit = QLineEdit()
         self._ext_edit.setPlaceholderText("blank = all")
         self._ext_edit.setFixedWidth(180); self._ext_edit.setStyleSheet(_inp())
         self._ext_edit.textChanged.connect(self._reload)
-        opt_row.addWidget(self._ext_edit)
-        opt_row.addStretch()
-        lay.addLayout(opt_row)
+        opt.addWidget(self._ext_edit)
+        opt.addStretch()
+        lay.addLayout(opt)
 
-        # Table header label + Move buttons
-        ctrl_row = QHBoxLayout()
-        ctrl_row.addWidget(_lbl(
-            "Reorder list  (drag rows  or  edit № column  or  use buttons)", "#555", 11))
-        ctrl_row.addStretch()
+        # Toolbar
+        ctrl = QHBoxLayout()
+        ctrl.addWidget(_lbl(
+            "Drag rows · edit № · or use buttons to reorder", "#555", 11))
+        ctrl.addStretch()
 
+        btn_style = ("background:#2A2A2A;color:#E0E0E0;border:1px solid #3E3E3E;"
+                     "border-radius:6px;font-size:12px;padding:0 14px;")
         self._up_btn = QPushButton("▲  Move Up")
         self._up_btn.setFixedHeight(30)
-        self._up_btn.setStyleSheet(
-            "background:#2A2A2A;color:#E0E0E0;border:1px solid #3E3E3E;"
-            "border-radius:6px;font-size:12px;padding:0 12px;")
+        self._up_btn.setStyleSheet(btn_style)
         self._up_btn.clicked.connect(self._move_up)
-        ctrl_row.addWidget(self._up_btn)
+        ctrl.addWidget(self._up_btn)
 
         self._down_btn = QPushButton("▼  Move Down")
         self._down_btn.setFixedHeight(30)
-        self._down_btn.setStyleSheet(
-            "background:#2A2A2A;color:#E0E0E0;border:1px solid #3E3E3E;"
-            "border-radius:6px;font-size:12px;padding:0 12px;")
+        self._down_btn.setStyleSheet(btn_style)
         self._down_btn.clicked.connect(self._move_down)
-        ctrl_row.addWidget(self._down_btn)
-        lay.addLayout(ctrl_row)
+        ctrl.addWidget(self._down_btn)
+        lay.addLayout(ctrl)
 
-        # Main table
-        self._table = _OrderingTable()
-        self._table.rows_reordered.connect(self._refresh_numbers)
+        # Main table  (cols: №editable | filename | ext | →new name)
+        self._table = _DragDropTable(4)
+        self._table.setHorizontalHeaderLabels(["№", "Current filename", "Ext", "New filename"])
+        hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(3, QHeaderView.Stretch)
+        self._table.setStyleSheet("""
+            QTableWidget {
+                background:#1A1A1A; border:none; font-size:12px;
+                gridline-color:#2A2A2A;
+            }
+            QHeaderView::section {
+                background:#252525; color:#888; border:none;
+                padding:6px; font-size:11px;
+            }
+            QTableWidget::item { padding:4px 8px; }
+            QTableWidget::item:selected { background:#1E2A3A; }
+        """)
+        self._table.row_dropped.connect(self._on_drop)
         self._table.cellChanged.connect(self._on_cell_changed)
         self._table.itemSelectionChanged.connect(self._update_btn_states)
         lay.addWidget(self._table, 1)
-
-        # Result preview (read-only summary)
-        lay.addWidget(_lbl("Rename preview  (green = changes, gray = unchanged)", "#555", 11))
-        self._preview_table = _make_table()
-        self._preview_table.setMaximumHeight(160)
-        lay.addWidget(self._preview_table)
 
         # Progress + status
         self._progress = _make_progress(); self._progress.hide()
@@ -840,7 +870,7 @@ class _OrderingTab(QWidget):
         self._status = _lbl("", "#888", 12)
         lay.addWidget(self._status)
 
-        # Bottom buttons
+        # Buttons
         btn_row = QHBoxLayout()
         self._apply_btn = QPushButton("✅  Apply Ordering & Numbers")
         self._apply_btn.setFixedHeight(38); self._apply_btn.setEnabled(False)
@@ -872,11 +902,13 @@ class _OrderingTab(QWidget):
         for p in self._ext_edit.text().lower().split():
             exts.add(p if p.startswith(".") else "." + p)
         files = sorted(
-            [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))],
+            [f for f in os.listdir(folder)
+             if os.path.isfile(os.path.join(folder, f))],
             key=str.lower
         )
         if exts:
-            files = [f for f in files if os.path.splitext(f)[1].lower() in exts]
+            files = [f for f in files
+                     if os.path.splitext(f)[1].lower() in exts]
 
         strip = self._strip_chk.isChecked()
         self._items = []
@@ -885,113 +917,78 @@ class _OrderingTab(QWidget):
             num, sep, rest = _parse_prefix(stem)
             display_stem = rest if (strip and num is not None) else stem
             self._items.append({
+                "_uid":     _next_uid(),
                 "filename": fn,
-                "stem": display_stem,
-                "ext": ext,
-                "orig_num": num,
-                "sep": sep if sep else "_",
+                "stem":     display_stem,
+                "ext":      ext,
             })
 
         self._populate_table()
-        self._refresh_numbers()
+
+    # ── Table population (single source of truth) ─────────────────────────────
 
     def _populate_table(self):
-        """Fill the ordering table from self._items (no numbering yet)."""
+        """
+        Completely rebuild the table from self._items.
+        Every mutation (drop, move-up/down, inline-edit) ends here.
+        """
         self._editing = True
         self._table.setRowCount(0)
+
+        start  = self._start.value()
+        digits = self._digits.value()
+        sep    = SEPARATORS[self._sep.currentIndex()]
+
         for i, item in enumerate(self._items):
-            r = self._table.rowCount()
+            num = start + i
+            r   = self._table.rowCount()
             self._table.insertRow(r)
 
-            num_item = QTableWidgetItem(str(i + self._start.value()))
-            num_item.setTextAlignment(Qt.AlignCenter)
-            num_item.setForeground(QColor("#7C4DFF"))
-            num_item.setFont(QFont("Consolas", 11, QFont.Bold))
-            self._table.setItem(r, 0, num_item)
+            # Col 0 — editable number; UID stored as UserRole for lookup
+            num_cell = QTableWidgetItem(str(num))
+            num_cell.setData(Qt.UserRole, item["_uid"])
+            num_cell.setTextAlignment(Qt.AlignCenter)
+            num_cell.setForeground(QColor("#7C4DFF"))
+            num_cell.setFont(QFont("Consolas", 11, QFont.Bold))
+            self._table.setItem(r, 0, num_cell)
 
-            fn_item = QTableWidgetItem(item["stem"])
-            fn_item.setForeground(QColor("#E0E0E0"))
-            fn_item.setFlags(fn_item.flags() & ~Qt.ItemIsEditable)
-            self._table.setItem(r, 1, fn_item)
+            # Col 1 — current filename (read-only)
+            fn_cell = QTableWidgetItem(item["filename"])
+            fn_cell.setForeground(QColor("#888"))
+            fn_cell.setFlags(fn_cell.flags() & ~Qt.ItemIsEditable)
+            self._table.setItem(r, 1, fn_cell)
 
-            ext_item = QTableWidgetItem(item["ext"])
-            ext_item.setForeground(QColor("#555"))
-            ext_item.setFlags(ext_item.flags() & ~Qt.ItemIsEditable)
-            self._table.setItem(r, 2, ext_item)
+            # Col 2 — extension (read-only)
+            ext_cell = QTableWidgetItem(item["ext"])
+            ext_cell.setForeground(QColor("#444"))
+            ext_cell.setFlags(ext_cell.flags() & ~Qt.ItemIsEditable)
+            self._table.setItem(r, 2, ext_cell)
 
-            # Col 3: new filename preview (read-only, built in _refresh_numbers)
-            prev_item = QTableWidgetItem("")
-            prev_item.setForeground(QColor("#00BFA5"))
-            prev_item.setFlags(prev_item.flags() & ~Qt.ItemIsEditable)
-            self._table.setItem(r, 3, prev_item)
+            # Col 3 — new filename preview (read-only)
+            new_fn = f"{_fmt(num, digits)}{sep}{item['stem']}{item['ext']}"
+            changed = new_fn != item["filename"]
+            prev_cell = QTableWidgetItem(new_fn)
+            prev_cell.setForeground(QColor("#00BFA5") if changed else QColor("#444"))
+            prev_cell.setFlags(prev_cell.flags() & ~Qt.ItemIsEditable)
+            self._table.setItem(r, 3, prev_cell)
 
         self._editing = False
+        self._count_lbl.setText(f"{len(self._items)} file(s)")
+        self._apply_btn.setEnabled(len(self._items) > 0)
         self._update_btn_states()
 
-    # ── Number refresh logic ──────────────────────────────────────────────────
+    def _refresh_display(self):
+        """Re-render numbers/previews without touching the item order."""
+        self._populate_table()
 
-    def _refresh_numbers(self):
-        """
-        Re-read the current row order from the table, assign sequential numbers,
-        and update col-0 (editable number) and col-3 (new filename preview).
-        Also rebuilds the bottom preview table.
-        """
-        # Sync _items to current table row order
-        self._sync_items_from_table()
+    # ── Drag-drop handler ─────────────────────────────────────────────────────
 
-        start  = self._start.value()
-        digits = self._digits.value()
-        sep    = SEPARATORS[self._sep.currentIndex()]
-
-        self._editing = True
-        for r, item in enumerate(self._items):
-            num = start + r
-            num_item = self._table.item(r, 0)
-            if num_item:
-                num_item.setText(str(num))
-
-            new_fn = f"{_fmt(num, digits)}{sep}{item['stem']}{item['ext']}"
-            prev_item = self._table.item(r, 3)
-            if prev_item:
-                prev_item.setText(new_fn)
-                changed = new_fn != item["filename"]
-                prev_item.setForeground(QColor("#00BFA5") if changed else QColor("#555"))
-        self._editing = False
-
-        self._rebuild_preview()
-        n = len(self._items)
-        self._count_lbl.setText(f"{n} file(s)")
-        self._apply_btn.setEnabled(n > 0)
-
-    def _sync_items_from_table(self):
-        """Reorder self._items to match the current visual row order."""
-        new_items = []
-        for r in range(self._table.rowCount()):
-            stem_cell = self._table.item(r, 1)
-            ext_cell  = self._table.item(r, 2)
-            if stem_cell and ext_cell:
-                stem = stem_cell.text()
-                ext  = ext_cell.text()
-                # find matching item in self._items
-                match = next(
-                    (it for it in self._items if it["stem"] == stem and it["ext"] == ext),
-                    None
-                )
-                if match:
-                    new_items.append(match)
-        if len(new_items) == len(self._items):
-            self._items = new_items
-
-    def _rebuild_preview(self):
-        start  = self._start.value()
-        digits = self._digits.value()
-        sep    = SEPARATORS[self._sep.currentIndex()]
-        rows = []
-        for i, item in enumerate(self._items):
-            num    = start + i
-            new_fn = f"{_fmt(num, digits)}{sep}{item['stem']}{item['ext']}"
-            rows.append((num, item["filename"], new_fn, new_fn != item["filename"]))
-        _fill_table(self._preview_table, rows)
+    def _on_drop(self, src_row: int, dst_row: int):
+        """Move item at src_row to dst_row, shift everything in between."""
+        item = self._items.pop(src_row)
+        self._items.insert(dst_row, item)
+        self._populate_table()
+        self._table.selectRow(dst_row)
 
     # ── Inline number editing ─────────────────────────────────────────────────
 
@@ -1001,42 +998,33 @@ class _OrderingTab(QWidget):
         cell = self._table.item(row, col)
         if not cell:
             return
+
+        # Parse the typed number
         try:
             new_num = int(cell.text())
         except ValueError:
-            # Restore valid value silently
-            self._editing = True
-            cell.setText(str(self._start.value() + row))
-            self._editing = False
+            self._populate_table()
             return
 
-        start = self._start.value()
-        # Convert to 0-based index target
+        start      = self._start.value()
         target_idx = new_num - start
         target_idx = max(0, min(target_idx, len(self._items) - 1))
 
         if target_idx == row:
-            self._refresh_numbers()
+            self._populate_table()
             return
 
-        # Reorder: remove item from current position, insert at target
+        # Move item to typed position (same logic as drag-drop)
         item = self._items.pop(row)
         self._items.insert(target_idx, item)
-
-        # Repopulate table to reflect new order
         self._populate_table()
-        self._refresh_numbers()
-
-        # Re-select the moved row
         self._table.selectRow(target_idx)
 
-    # ── Move Up / Move Down ───────────────────────────────────────────────────
+    # ── Move Up / Down ────────────────────────────────────────────────────────
 
-    def _selected_row(self):
-        rows = self._table.selectedItems()
-        if not rows:
-            return -1
-        return self._table.row(rows[0])
+    def _selected_row(self) -> int:
+        sel = self._table.selectedItems()
+        return self._table.row(sel[0]) if sel else -1
 
     def _move_up(self):
         r = self._selected_row()
@@ -1044,7 +1032,6 @@ class _OrderingTab(QWidget):
             return
         self._items[r], self._items[r - 1] = self._items[r - 1], self._items[r]
         self._populate_table()
-        self._refresh_numbers()
         self._table.selectRow(r - 1)
 
     def _move_down(self):
@@ -1053,7 +1040,6 @@ class _OrderingTab(QWidget):
             return
         self._items[r], self._items[r + 1] = self._items[r + 1], self._items[r]
         self._populate_table()
-        self._refresh_numbers()
         self._table.selectRow(r + 1)
 
     def _update_btn_states(self):
@@ -1069,11 +1055,406 @@ class _OrderingTab(QWidget):
         start  = self._start.value()
         digits = self._digits.value()
         sep    = SEPARATORS[self._sep.currentIndex()]
-        jobs = []
+        jobs   = []
         for i, item in enumerate(self._items):
             num    = start + i
             new_fn = f"{_fmt(num, digits)}{sep}{item['stem']}{item['ext']}"
-            old_path = os.path.join(folder, item["filename"])
+            old    = os.path.join(folder, item["filename"])
+            new    = os.path.join(folder, new_fn)
+            if old != new:
+                jobs.append((old, new))
+        return jobs
+
+    def _apply(self):
+        jobs = self._build_jobs()
+        if not jobs:
+            self._status.setText("Nothing to rename — already in order.")
+            return
+        self._last_jobs = [(n, o) for o, n in jobs]
+        _run_worker(self, jobs)
+
+    def _undo(self):
+        if not self._last_jobs:
+            QMessageBox.information(self, "Undo", "Nothing to undo.")
+            return
+        if QMessageBox.question(
+            self, "Undo", f"Reverse {len(self._last_jobs)} rename(s)?",
+            QMessageBox.Yes | QMessageBox.No
+        ) != QMessageBox.Yes:
+            return
+        jobs = self._last_jobs; self._last_jobs = []
+        _run_worker(self, jobs)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — Assign / Fill Numbers
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Shows ALL files in the folder split into two groups:
+#   • Already numbered — displayed with their current prefix
+#   • Unprefixed — shown with a "—" slot that the user can fill in
+#
+# The user can:
+#   1. Type a number in the "Assign №" spin next to any unprefixed file.
+#      On confirm the file is inserted at that position and every file
+#      at that position or later shifts up by 1.
+#   2. Click "Fill All Gaps" to compact the whole sequence so it is
+#      gapless starting from the configured start value.
+#   3. Click "Auto-assign Unprefixed" to append all unprefixed files
+#      after the highest existing number, keeping order.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _AssignNumbersTab(QWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Each entry: {filename, stem (bare), ext, num (int|None), _uid}
+        self._entries   = []
+        self._last_jobs = []
+        self._worker    = None
+        self._build_ui()
+
+    # ── UI ────────────────────────────────────────────────────────────────────
+
+    def _build_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+
+        self._folder_bar = _FolderBar(self._reload)
+        lay.addWidget(self._folder_bar)
+
+        info = QFrame()
+        info.setStyleSheet(
+            "background:#2A1A1A;border-radius:6px;border:1px solid #4A2A2A;")
+        il = QHBoxLayout(info); il.setContentsMargins(12, 8, 12, 8)
+        il.addWidget(_lbl(
+            "Files without a number prefix are shown in orange.  "
+            "Assign a number to slot them into the sequence — all later files shift up by 1.  "
+            "Use 'Fill All Gaps' to compact a sequence with holes.",
+            "#FF8A65", 12))
+        lay.addWidget(info)
+
+        # Options
+        opt = QHBoxLayout(); opt.setSpacing(16)
+        opt.addWidget(_lbl("Start at:"))
+        self._start = QSpinBox(); self._start.setRange(0, 99999)
+        self._start.setValue(1); self._start.setFixedWidth(70)
+        self._start.setStyleSheet(_inp())
+        self._start.valueChanged.connect(self._rebuild_table)
+        opt.addWidget(self._start)
+
+        opt.addWidget(_lbl("Digits:"))
+        self._digits = QSpinBox(); self._digits.setRange(1, 6)
+        self._digits.setValue(3); self._digits.setFixedWidth(60)
+        self._digits.setStyleSheet(_inp())
+        self._digits.valueChanged.connect(self._rebuild_table)
+        opt.addWidget(self._digits)
+
+        opt.addWidget(_lbl("Separator:"))
+        self._sep = QComboBox(); self._sep.addItems(SEP_LABELS)
+        self._sep.setFixedWidth(160); self._sep.setStyleSheet(_inp())
+        self._sep.currentIndexChanged.connect(self._rebuild_table)
+        opt.addWidget(self._sep)
+
+        opt.addWidget(_lbl("Extensions:"))
+        self._ext_edit = QLineEdit()
+        self._ext_edit.setPlaceholderText("blank = all")
+        self._ext_edit.setFixedWidth(180); self._ext_edit.setStyleSheet(_inp())
+        self._ext_edit.textChanged.connect(self._reload)
+        opt.addWidget(self._ext_edit)
+        opt.addStretch()
+        lay.addLayout(opt)
+
+        # Action buttons
+        act = QHBoxLayout(); act.setSpacing(10)
+
+        self._fill_btn = QPushButton("🔧  Fill All Gaps")
+        self._fill_btn.setFixedHeight(32)
+        self._fill_btn.setStyleSheet(
+            "background:#37474F;color:#E0E0E0;border:none;"
+            "border-radius:6px;font-size:12px;padding:0 16px;")
+        self._fill_btn.clicked.connect(self._fill_gaps)
+        act.addWidget(self._fill_btn)
+
+        self._append_btn = QPushButton("⬇  Auto-assign Unprefixed (append)")
+        self._append_btn.setFixedHeight(32)
+        self._append_btn.setStyleSheet(
+            "background:#37474F;color:#E0E0E0;border:none;"
+            "border-radius:6px;font-size:12px;padding:0 16px;")
+        self._append_btn.clicked.connect(self._auto_append)
+        act.addWidget(self._append_btn)
+        act.addStretch()
+
+        self._gap_lbl = _lbl("", "#FF8A65", 12)
+        act.addWidget(self._gap_lbl)
+        lay.addLayout(act)
+
+        # Table: current№ | filename | assign-spin | →new name
+        lay.addWidget(_lbl(
+            "Current sequence  (orange = unprefixed / needs a number)", "#555", 11))
+
+        self._table = QTableWidget(0, 4)
+        self._table.setHorizontalHeaderLabels(
+            ["Current №", "Filename", "Assign №", "New filename"])
+        hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(3, QHeaderView.Stretch)
+        self._table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._table.verticalHeader().setVisible(False)
+        self._table.setStyleSheet("""
+            QTableWidget {
+                background:#1A1A1A; border:none; font-size:12px;
+                gridline-color:#2A2A2A;
+            }
+            QHeaderView::section {
+                background:#252525; color:#888; border:none; padding:6px;
+            }
+            QTableWidget::item { padding:2px 8px; }
+        """)
+        lay.addWidget(self._table, 1)
+
+        # Progress + status
+        self._progress = _make_progress(); self._progress.hide()
+        lay.addWidget(self._progress)
+        self._status = _lbl("", "#888", 12)
+        lay.addWidget(self._status)
+
+        # Bottom buttons
+        btn_row = QHBoxLayout()
+        self._apply_btn = QPushButton("✅  Apply All Assignments")
+        self._apply_btn.setFixedHeight(38); self._apply_btn.setEnabled(False)
+        self._apply_btn.setStyleSheet(
+            "background:#FF6D00;color:#fff;border:none;border-radius:7px;"
+            "font-weight:bold;font-size:13px;")
+        self._apply_btn.clicked.connect(self._apply)
+        btn_row.addWidget(self._apply_btn)
+
+        undo_btn = QPushButton("↩  Undo")
+        undo_btn.setFixedHeight(38)
+        undo_btn.setStyleSheet(
+            "background:#3A3A3A;color:#E0E0E0;border:none;"
+            "border-radius:7px;font-size:13px;")
+        undo_btn.clicked.connect(self._undo)
+        btn_row.addWidget(undo_btn)
+        btn_row.addStretch()
+        self._count_lbl = _lbl("0 files", "#555")
+        btn_row.addWidget(self._count_lbl)
+        lay.addLayout(btn_row)
+
+    # ── Data loading ──────────────────────────────────────────────────────────
+
+    def _reload(self):
+        folder = self._folder_bar.folder
+        if not folder:
+            return
+        exts = set()
+        for p in self._ext_edit.text().lower().split():
+            exts.add(p if p.startswith(".") else "." + p)
+        files = sorted(
+            [f for f in os.listdir(folder)
+             if os.path.isfile(os.path.join(folder, f))],
+            key=str.lower
+        )
+        if exts:
+            files = [f for f in files
+                     if os.path.splitext(f)[1].lower() in exts]
+
+        self._entries = []
+        for fn in files:
+            stem, ext = os.path.splitext(fn)
+            num, _sep, rest = _parse_prefix(stem)
+            bare = rest if num is not None else stem
+            self._entries.append({
+                "_uid":     _next_uid(),
+                "filename": fn,
+                "stem":     bare,
+                "ext":      ext,
+                "num":      num,   # None = unprefixed
+            })
+
+        self._rebuild_table()
+
+    # ── Sequence helpers ──────────────────────────────────────────────────────
+
+    def _sorted_entries(self):
+        """
+        Return entries sorted: numbered ones first (by their number),
+        then unprefixed ones appended at the end in filename order.
+        Within the numbered group, preserve relative order for ties.
+        """
+        numbered   = [e for e in self._entries if e["num"] is not None]
+        unprefixed = [e for e in self._entries if e["num"] is None]
+        numbered.sort(key=lambda e: e["num"])
+        return numbered + unprefixed
+
+    def _gaps_and_unprefixed(self):
+        start    = self._start.value()
+        numbered = sorted(
+            [e for e in self._entries if e["num"] is not None],
+            key=lambda e: e["num"]
+        )
+        unprefixed = [e for e in self._entries if e["num"] is None]
+        nums = [e["num"] for e in numbered]
+        expected = set(range(start, start + len(numbered)))
+        gaps = sorted(expected - set(nums))
+        return gaps, unprefixed
+
+    # ── Table rebuild ─────────────────────────────────────────────────────────
+
+    def _rebuild_table(self):
+        self._table.setRowCount(0)
+        digits = self._digits.value()
+        sep    = SEPARATORS[self._sep.currentIndex()]
+
+        entries   = self._sorted_entries()
+        gaps, unp = self._gaps_and_unprefixed()
+
+        gap_txt = []
+        if gaps:
+            gap_txt.append(f"{len(gaps)} gap(s): " +
+                           ", ".join(_fmt(g, digits) for g in gaps[:6]) +
+                           ("…" if len(gaps) > 6 else ""))
+        if unp:
+            gap_txt.append(f"{len(unp)} unprefixed file(s)")
+        self._gap_lbl.setText("  •  ".join(gap_txt) if gap_txt else "✅  Sequence is complete")
+
+        for entry in entries:
+            r = self._table.rowCount()
+            self._table.insertRow(r)
+
+            has_num  = entry["num"] is not None
+            num_str  = _fmt(entry["num"], digits) if has_num else "—"
+            new_fn   = (f"{_fmt(entry['num'], digits)}{sep}{entry['stem']}{entry['ext']}"
+                        if has_num else entry["filename"])
+            changed  = has_num and new_fn != entry["filename"]
+
+            # Col 0 — current number
+            c0 = QTableWidgetItem(num_str)
+            c0.setTextAlignment(Qt.AlignCenter)
+            c0.setForeground(QColor("#888") if has_num else QColor("#FF8A65"))
+            self._table.setItem(r, 0, c0)
+
+            # Col 1 — filename
+            c1 = QTableWidgetItem(entry["filename"])
+            c1.setForeground(QColor("#E0E0E0") if has_num else QColor("#FF8A65"))
+            self._table.setItem(r, 1, c1)
+
+            # Col 2 — assign spinbox (only meaningful for unprefixed)
+            spin = QSpinBox()
+            spin.setRange(self._start.value(), 99999)
+            if has_num:
+                spin.setValue(entry["num"])
+                spin.setEnabled(True)
+                spin.setStyleSheet(_inp() + "color:#888;")
+            else:
+                # Default suggestion: first available gap or end of sequence
+                suggestion = gaps[0] if gaps else (
+                    (max((e["num"] for e in self._entries if e["num"] is not None),
+                         default=self._start.value() - 1) + 1)
+                )
+                spin.setValue(suggestion)
+                spin.setStyleSheet(_inp() + "color:#FF8A65;font-weight:bold;")
+                if gaps:
+                    gaps = gaps[1:]   # consume suggestion
+
+            uid = entry["_uid"]
+            spin.valueChanged.connect(lambda v, u=uid: self._on_spin_changed(u, v))
+            self._table.setCellWidget(r, 2, spin)
+
+            # Col 3 — new filename preview
+            c3 = QTableWidgetItem(new_fn)
+            c3.setForeground(QColor("#00BFA5") if changed else
+                             (QColor("#FF8A65") if not has_num else QColor("#444")))
+            self._table.setItem(r, 3, c3)
+
+        n = len(self._entries)
+        self._count_lbl.setText(f"{n} file(s)")
+        self._apply_btn.setEnabled(n > 0)
+
+    # ── Spin-box assignment logic ─────────────────────────────────────────────
+
+    def _on_spin_changed(self, uid: int, new_num: int):
+        """
+        When the user changes the spin for an entry (identified by uid),
+        insert it at new_num and push every entry at >= new_num up by 1.
+        """
+        # Find the entry
+        entry = next((e for e in self._entries if e["_uid"] == uid), None)
+        if entry is None:
+            return
+
+        old_num = entry["num"]
+
+        # Shift all other numbered entries that are >= new_num up by 1
+        # (only if the slot is actually occupied)
+        occupied = {e["num"] for e in self._entries
+                    if e["num"] is not None and e["_uid"] != uid}
+        if new_num in occupied:
+            for e in self._entries:
+                if e["_uid"] != uid and e["num"] is not None and e["num"] >= new_num:
+                    e["num"] += 1
+
+        entry["num"] = new_num
+        self._rebuild_table()
+
+    # ── Batch actions ─────────────────────────────────────────────────────────
+
+    def _fill_gaps(self):
+        """Compact: renumber all numbered entries sequentially from start."""
+        start    = self._start.value()
+        numbered = sorted(
+            [e for e in self._entries if e["num"] is not None],
+            key=lambda e: e["num"]
+        )
+        for i, e in enumerate(numbered):
+            e["num"] = start + i
+        self._rebuild_table()
+
+    def _auto_append(self):
+        """Assign numbers to all unprefixed entries, appending after highest existing."""
+        numbered = [e for e in self._entries if e["num"] is not None]
+        start    = self._start.value()
+        next_num = (max(e["num"] for e in numbered) + 1) if numbered else start
+        for e in self._entries:
+            if e["num"] is None:
+                e["num"] = next_num
+                next_num += 1
+        self._rebuild_table()
+
+    # ── Apply & Undo ──────────────────────────────────────────────────────────
+
+    def _build_jobs(self):
+        """
+        Build rename jobs from the current spin-box state.
+        Read the assigned number for each row from the spin widget.
+        """
+        folder = self._folder_bar.folder
+        digits = self._digits.value()
+        sep    = SEPARATORS[self._sep.currentIndex()]
+        jobs   = []
+
+        # First pass: collect assignments from spin widgets
+        assignments = {}   # uid → assigned_num
+        for r in range(self._table.rowCount()):
+            spin = self._table.cellWidget(r, 2)
+            fn_cell = self._table.item(r, 1)
+            if spin and fn_cell:
+                fn = fn_cell.text()
+                entry = next(
+                    (e for e in self._entries if e["filename"] == fn), None)
+                if entry:
+                    assignments[entry["_uid"]] = spin.value()
+
+        for entry in self._entries:
+            num = assignments.get(entry["_uid"], entry["num"])
+            if num is None:
+                continue   # still unassigned — skip
+            new_fn  = f"{_fmt(num, digits)}{sep}{entry['stem']}{entry['ext']}"
+            old_path = os.path.join(folder, entry["filename"])
             new_path = os.path.join(folder, new_fn)
             if old_path != new_path:
                 jobs.append((old_path, new_path))
@@ -1082,7 +1463,7 @@ class _OrderingTab(QWidget):
     def _apply(self):
         jobs = self._build_jobs()
         if not jobs:
-            self._status.setText("Nothing to rename — files are already in order.")
+            self._status.setText("Nothing to rename.")
             return
         self._last_jobs = [(n, o) for o, n in jobs]
         _run_worker(self, jobs)
@@ -1173,8 +1554,9 @@ class NumberPrefixTool(QWidget):
                                     border-bottom:2px solid #00BFA5; }
             QTabBar::tab:hover    { color:#E0E0E0; }
         """)
-        tabs.addTab(_AddPrefixTab(),    "➕  Add Prefix")
-        tabs.addTab(_IncreaseAllTab(),  "⬆  Increase All Numbers")
-        tabs.addTab(_IncreaseAfterTab(),"🎯  Increase From Number")
-        tabs.addTab(_OrderingTab(),     "⇅  Ordering / Numbering")
+        tabs.addTab(_AddPrefixTab(),      "➕  Add Prefix")
+        tabs.addTab(_IncreaseAllTab(),   "⬆  Increase All Numbers")
+        tabs.addTab(_IncreaseAfterTab(), "🎯  Increase From Number")
+        tabs.addTab(_OrderingTab(),      "⇅  Ordering / Numbering")
+        tabs.addTab(_AssignNumbersTab(), "🔀  Assign / Fill Numbers")
         root.addWidget(tabs, 1)
