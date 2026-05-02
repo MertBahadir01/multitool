@@ -1702,6 +1702,340 @@ class _ShuffleTab(QWidget):
         _run_worker(self, jobs)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 7 — Remove Prefix
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Strips the leading numeric prefix (and its separator) from every matching
+# filename, leaving just the bare stem + extension.
+#
+# Options:
+#   • Extension filter          — operate only on selected file types
+#   • Skip files with no prefix — leave unprefixed files untouched (default on)
+#   • Custom pattern override   — optionally strip a specific prefix string
+#     instead of the auto-detected number+separator pattern
+#   • Live preview table        — green = will be renamed, grey = untouched
+#   • Full undo support
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _RemovePrefixTab(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._files     = []
+        self._last_jobs = []
+        self._worker    = None
+        self._build_ui()
+
+    # ── UI ────────────────────────────────────────────────────────────────────
+
+    def _build_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+
+        self._folder_bar = _FolderBar(self._reload)
+        lay.addWidget(self._folder_bar)
+
+        # Info banner
+        info = QFrame()
+        info.setStyleSheet(
+            "background:#1A2A1E;border-radius:6px;border:1px solid #2A4A30;")
+        il = QHBoxLayout(info); il.setContentsMargins(12, 8, 12, 8)
+        il.addWidget(_lbl(
+            "Removes the leading numeric prefix (and its separator) from filenames.  "
+            "e.g.  003_photo.jpg → photo.jpg   •   042 - track.mp3 → track.mp3",
+            "#81C784", 12))
+        lay.addWidget(info)
+
+        # Options row 1
+        opt1 = QHBoxLayout(); opt1.setSpacing(16)
+
+        self._skip_chk = QCheckBox("Skip files that have no numeric prefix")
+        self._skip_chk.setChecked(True)
+        self._skip_chk.setStyleSheet("color:#888;font-size:12px;")
+        self._skip_chk.stateChanged.connect(self._preview)
+        opt1.addWidget(self._skip_chk)
+
+        self._sub_chk = QCheckBox("Include subfolders")
+        self._sub_chk.setStyleSheet("color:#888;font-size:12px;")
+        self._sub_chk.stateChanged.connect(self._reload)
+        opt1.addWidget(self._sub_chk)
+
+        opt1.addWidget(_lbl("Extensions:"))
+        self._ext_edit = QLineEdit()
+        self._ext_edit.setPlaceholderText(".jpg .mp3  — blank = all")
+        self._ext_edit.setFixedWidth(240); self._ext_edit.setStyleSheet(_inp())
+        self._ext_edit.textChanged.connect(self._reload)
+        opt1.addWidget(self._ext_edit)
+        opt1.addStretch()
+        lay.addLayout(opt1)
+
+        # Options row 2 — custom pattern
+        opt2 = QHBoxLayout(); opt2.setSpacing(10)
+
+        self._custom_chk = QCheckBox("Use custom prefix pattern (regex):")
+        self._custom_chk.setStyleSheet("color:#888;font-size:12px;")
+        self._custom_chk.stateChanged.connect(self._on_custom_toggled)
+        opt2.addWidget(self._custom_chk)
+
+        self._pattern_edit = QLineEdit()
+        self._pattern_edit.setPlaceholderText(r"e.g.  ^IMG_\d+_  or  ^track\d+\s*-\s*")
+        self._pattern_edit.setFixedWidth(300); self._pattern_edit.setStyleSheet(_inp())
+        self._pattern_edit.setEnabled(False)
+        self._pattern_edit.textChanged.connect(self._preview)
+        opt2.addWidget(self._pattern_edit)
+
+        self._pattern_err = _lbl("", "#FF5252", 11)
+        opt2.addWidget(self._pattern_err)
+        opt2.addStretch()
+        lay.addLayout(opt2)
+
+        # Stats bar
+        self._stats_lbl = _lbl("", "#555", 11)
+        lay.addWidget(self._stats_lbl)
+
+        # Preview table
+        lay.addWidget(_lbl(
+            "Preview  (green = prefix will be removed, grey = untouched)",
+            "#555", 11))
+
+        self._table = QTableWidget(0, 3)
+        self._table.setHorizontalHeaderLabels(["#", "Original filename", "New filename"])
+        hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)
+        self._table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._table.verticalHeader().setVisible(False)
+        self._table.setStyleSheet("""
+            QTableWidget { background:#1A1A1A; border:none; font-size:12px;
+                           gridline-color:#2A2A2A; }
+            QHeaderView::section { background:#252525; color:#888; border:none;
+                                   padding:6px; font-size:11px; }
+            QTableWidget::item { padding:4px 8px; }
+            QTableWidget::item:selected { background:#1E2E1E; }
+        """)
+        lay.addWidget(self._table, 1)
+
+        # Progress + status
+        self._progress = _make_progress(); self._progress.hide()
+        lay.addWidget(self._progress)
+        self._status = _lbl("", "#888", 12)
+        lay.addWidget(self._status)
+
+        # Bottom buttons
+        btn_row = QHBoxLayout()
+        self._apply_btn = QPushButton("✅  Remove Prefix from All Matching Files")
+        self._apply_btn.setFixedHeight(38); self._apply_btn.setEnabled(False)
+        self._apply_btn.setStyleSheet(
+            "background:#388E3C;color:#fff;border:none;border-radius:7px;"
+            "font-weight:bold;font-size:13px;")
+        self._apply_btn.clicked.connect(self._apply)
+        btn_row.addWidget(self._apply_btn)
+
+        undo_btn = QPushButton("↩  Undo")
+        undo_btn.setFixedHeight(38)
+        undo_btn.setStyleSheet(
+            "background:#3A3A3A;color:#E0E0E0;border:none;"
+            "border-radius:7px;font-size:13px;")
+        undo_btn.clicked.connect(self._undo)
+        btn_row.addWidget(undo_btn)
+        btn_row.addStretch()
+        self._count_lbl = _lbl("0 files", "#555")
+        btn_row.addWidget(self._count_lbl)
+        lay.addLayout(btn_row)
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _on_custom_toggled(self):
+        self._pattern_edit.setEnabled(self._custom_chk.isChecked())
+        self._pattern_err.setText("")
+        self._preview()
+
+    def _new_name(self, fn: str) -> str | None:
+        """
+        Return the new filename after stripping the prefix, or None if
+        nothing should change (no prefix found / skip flag / pattern error).
+        """
+        stem, ext = os.path.splitext(fn)
+
+        if self._custom_chk.isChecked():
+            pattern = self._pattern_edit.text().strip()
+            if not pattern:
+                return None
+            try:
+                new_stem = re.sub(pattern, "", stem, count=1)
+            except re.error:
+                return None
+            if new_stem == stem:
+                return None          # pattern didn't match
+            return (new_stem + ext) if new_stem else None
+
+        # Default: strip numeric prefix detected by _parse_prefix
+        num, sep, rest = _parse_prefix(stem)
+        if num is None:
+            return None              # no prefix
+        if not rest:
+            return None              # would leave an empty filename
+        return rest + ext
+
+    # ── Data loading ──────────────────────────────────────────────────────────
+
+    def _reload(self):
+        folder = self._folder_bar.folder
+        if not folder:
+            return
+
+        exts = set()
+        for p in self._ext_edit.text().lower().split():
+            exts.add(p if p.startswith(".") else "." + p)
+
+        if self._sub_chk.isChecked():
+            files = []
+            for dp, _, fns in os.walk(folder):
+                for f in fns:
+                    files.append(os.path.relpath(os.path.join(dp, f), folder))
+        else:
+            files = [f for f in os.listdir(folder)
+                     if os.path.isfile(os.path.join(folder, f))]
+
+        if exts:
+            files = [f for f in files
+                     if os.path.splitext(f)[1].lower() in exts]
+
+        self._files = sorted(files, key=str.lower)
+        self._preview()
+
+    # ── Preview ───────────────────────────────────────────────────────────────
+
+    def _preview(self):
+        self._pattern_err.setText("")
+        files = self._files
+
+        if not files:
+            self._table.setRowCount(0)
+            self._count_lbl.setText("0 files")
+            self._apply_btn.setEnabled(False)
+            self._stats_lbl.setText("")
+            return
+
+        # Validate custom regex early so we can show an error
+        if self._custom_chk.isChecked():
+            pattern = self._pattern_edit.text().strip()
+            if pattern:
+                try:
+                    re.compile(pattern)
+                except re.error as e:
+                    self._pattern_err.setText(f"⚠ Bad regex: {e}")
+                    self._table.setRowCount(0)
+                    self._apply_btn.setEnabled(False)
+                    return
+
+        skip = self._skip_chk.isChecked()
+        rows = []
+        will_change = 0
+        skipped     = 0
+        collision_warning = False
+
+        # Collect prospective new names to detect collisions
+        new_names = {}   # new_fn → original fn (first seen)
+
+        for i, fn in enumerate(files):
+            new_fn = self._new_name(fn)
+
+            if new_fn is None:
+                if skip:
+                    rows.append((i + 1, fn, fn, False, False))
+                    skipped += 1
+                else:
+                    rows.append((i + 1, fn, fn, False, False))
+                continue
+
+            # Collision check
+            collision = new_fn in new_names
+            if collision:
+                collision_warning = True
+            else:
+                new_names[new_fn] = fn
+
+            rows.append((i + 1, fn, new_fn, True, collision))
+            will_change += 1
+
+        # Populate table
+        self._table.setRowCount(0)
+        for num, orig, new, changed, collision in rows:
+            r = self._table.rowCount()
+            self._table.insertRow(r)
+
+            c0 = QTableWidgetItem(str(num))
+            c0.setTextAlignment(Qt.AlignCenter)
+            c0.setForeground(QColor("#555"))
+            self._table.setItem(r, 0, c0)
+
+            c1 = QTableWidgetItem(orig)
+            c1.setForeground(QColor("#888"))
+            self._table.setItem(r, 1, c1)
+
+            c2 = QTableWidgetItem(new)
+            if collision:
+                c2.setForeground(QColor("#FF5252"))   # red = collision!
+            elif changed:
+                c2.setForeground(QColor("#81C784"))   # green = will change
+            else:
+                c2.setForeground(QColor("#444"))      # grey = untouched
+            self._table.setItem(r, 2, c2)
+
+        self._count_lbl.setText(f"{will_change} file(s) will change")
+        stats_parts = [f"{len(files)} total", f"{will_change} to rename"]
+        if skipped:
+            stats_parts.append(f"{skipped} skipped (no prefix)")
+        if collision_warning:
+            stats_parts.append("⚠ name collision(s) shown in red — resolve before applying")
+        self._stats_lbl.setText("  •  ".join(stats_parts))
+        self._stats_lbl.setStyleSheet(
+            f"color:{'#FF5252' if collision_warning else '#555'};font-size:11px;")
+
+        self._apply_btn.setEnabled(will_change > 0 and not collision_warning)
+
+    # ── Build rename jobs ─────────────────────────────────────────────────────
+
+    def _build_jobs(self):
+        folder = self._folder_bar.folder
+        jobs = []
+        for fn in self._files:
+            new_fn = self._new_name(fn)
+            if new_fn is None:
+                continue
+            old = os.path.join(folder, fn)
+            new = os.path.join(folder, new_fn)
+            if old != new:
+                jobs.append((old, new))
+        return jobs
+
+    # ── Apply & Undo ──────────────────────────────────────────────────────────
+
+    def _apply(self):
+        jobs = self._build_jobs()
+        if not jobs:
+            self._status.setText("Nothing to rename.")
+            return
+        self._last_jobs = [(n, o) for o, n in jobs]
+        _run_worker(self, jobs)
+
+    def _undo(self):
+        if not self._last_jobs:
+            QMessageBox.information(self, "Undo", "Nothing to undo.")
+            return
+        if QMessageBox.question(
+            self, "Undo", f"Reverse {len(self._last_jobs)} rename(s)?",
+            QMessageBox.Yes | QMessageBox.No
+        ) != QMessageBox.Yes:
+            return
+        jobs = self._last_jobs; self._last_jobs = []
+        _run_worker(self, jobs)
+
+
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 def _make_progress():
@@ -1781,4 +2115,5 @@ class NumberPrefixTool(QWidget):
         tabs.addTab(_OrderingTab(),      "⇅  Ordering / Numbering")
         tabs.addTab(_AssignNumbersTab(), "🔀  Assign / Fill Numbers")
         tabs.addTab(_ShuffleTab(),       "🎲  Shuffle / Mix Randomly")
+        tabs.addTab(_RemovePrefixTab(),  "🗑  Remove Prefix")
         root.addWidget(tabs, 1)
