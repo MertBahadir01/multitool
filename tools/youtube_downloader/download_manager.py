@@ -14,12 +14,18 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 def _find_ffmpeg() -> str | None:
     """
-    Return the directory containing ffmpeg.exe, or None if already on PATH.
-    Checks common Windows install locations and the plugin's own folder.
+    Returns a valid ffmpeg location for yt-dlp.
+    - If ffmpeg is found in PATH → returns its folder
+    - Otherwise → searches common locations
+    - If not found → returns None
     """
-    if shutil.which("ffmpeg"):
-        return None  # Already on PATH — yt-dlp finds it automatically
 
+    # 1. Check system PATH
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        return os.path.dirname(ffmpeg_path)
+
+    # 2. Common locations
     candidates = [
         r"C:\ffmpeg\bin",
         r"C:\Program Files\ffmpeg\bin",
@@ -29,11 +35,13 @@ def _find_ffmpeg() -> str | None:
         os.path.join(os.path.dirname(__file__), "ffmpeg", "bin"),
         os.path.dirname(__file__),
     ]
-    for path in candidates:
-        if os.path.isfile(os.path.join(path, "ffmpeg.exe")):
-            return path
-    return None
 
+    for path in candidates:
+        exe = os.path.join(path, "ffmpeg.exe")
+        if os.path.isfile(exe):
+            return path
+
+    return None
 
 FFMPEG_LOCATION = _find_ffmpeg()
 
