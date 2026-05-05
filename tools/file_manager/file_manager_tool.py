@@ -249,6 +249,8 @@ class DupesTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._worker = None
+        self._scan_path = None
+        self._checked_items = set()   # set of QTreeWidgetItem (leaf nodes)
         self._build_ui()
 
     def _build_ui(self):
@@ -273,22 +275,49 @@ class DupesTab(QWidget):
         root.addWidget(self._progress)
 
         self._result_tree = QTreeWidget()
-        self._result_tree.setHeaderLabels(["File", "Size"])
-        self._result_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._result_tree.setHeaderLabels(["", "File", "Size"])
+        self._result_tree.setColumnWidth(0, 28)          # checkbox column
+        self._result_tree.header().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._result_tree.setColumnWidth(2, 90)
+        # No built-in selection highlight — we handle it via checkboxes
+        self._result_tree.setSelectionMode(QAbstractItemView.NoSelection)
+        self._result_tree.itemClicked.connect(self._on_item_clicked)
         root.addWidget(self._result_tree, 1)
 
+        # ── bottom bar ──────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
+
+        sel_all_btn = QPushButton("☑ Select All")
+        sel_all_btn.clicked.connect(self._select_all)
+        btn_row.addWidget(sel_all_btn)
+
+        sel_none_btn = QPushButton("☐ Deselect All")
+        sel_none_btn.clicked.connect(self._deselect_all)
+        btn_row.addWidget(sel_none_btn)
+
+        sel_dupes_btn = QPushButton("⚡ Select Dupes Only")
+        sel_dupes_btn.setToolTip("Keeps one copy per group, selects the rest")
+        sel_dupes_btn.clicked.connect(self._select_dupes_only)
+        btn_row.addWidget(sel_dupes_btn)
+
         del_btn = QPushButton("🗑️ Delete Selected")
         del_btn.setObjectName("secondary")
         del_btn.clicked.connect(self._delete_selected)
         btn_row.addWidget(del_btn)
-        btn_row.addStretch()
-        self._summary = QLabel("")
-        self._summary.setStyleSheet("color:#888; font-size:11px;")
-        btn_row.addWidget(self._summary)
-        root.addLayout(btn_row)
-        self._scan_path = None
 
+        btn_row.addStretch()
+
+        self._sel_label = QLabel("")
+        self._sel_label.setStyleSheet("color:#00BFA5; font-size:11px; font-weight:bold;")
+        btn_row.addWidget(self._sel_label)
+
+        self._summary = QLabel("")
+        self._summary.setStyleSheet("color:#888; font-size:11px; margin-left:12px;")
+        btn_row.addWidget(self._summary)
+
+        root.addLayout(btn_row)
+
+    # ── folder / scan ────────────────────────────────────────────────────────
     def _choose(self):
         d = QFileDialog.getExistingDirectory(self, "Select Folder")
         if d:
@@ -300,6 +329,8 @@ class DupesTab(QWidget):
             QMessageBox.information(self, "Select Folder", "Choose a folder first.")
             return
         self._result_tree.clear()
+        self._checked_items.clear()
+        self._update_sel_label()
         self._progress.show()
         self._progress.setRange(0, 0)
         self._scan_btn.setEnabled(False)
@@ -315,6 +346,7 @@ class DupesTab(QWidget):
 
     def _on_found(self, groups):
         self._result_tree.clear()
+        self._checked_items.clear()
         total_waste = 0
         for group in groups:
             try:
@@ -323,30 +355,129 @@ class DupesTab(QWidget):
                 sz = 0
             waste = sz * (len(group) - 1)
             total_waste += waste
-            parent = QTreeWidgetItem([f"🔄 {len(group)} duplicates  ({_fmt_size(sz)} each)", _fmt_size(sz)])
-            parent.setForeground(0, QColor("#FF9800"))
+            parent = QTreeWidgetItem(["", f"🔄 {len(group)} duplicates  ({_fmt_size(sz)} each)", _fmt_size(sz)])
+            parent.setForeground(1, QColor("#FF9800"))
+            parent.setData(0, Qt.UserRole, None)          # not a leaf
+            parent.setData(2, Qt.UserRole, sz)
             for path in group:
-                child = QTreeWidgetItem([path, _fmt_size(sz)])
+                child = QTreeWidgetItem(["☐", path, _fmt_size(sz)])
                 child.setData(0, Qt.UserRole, path)
+                child.setData(2, Qt.UserRole, sz)
                 parent.addChild(child)
             self._result_tree.addTopLevelItem(parent)
             parent.setExpanded(True)
         self._summary.setText(f"{len(groups)} duplicate groups  |  {_fmt_size(total_waste)} wasted")
+        self._update_sel_label()
 
+    # ── checkbox logic ───────────────────────────────────────────────────────
+    def _on_item_clicked(self, item, _column):
+        path = item.data(0, Qt.UserRole)
+        if path is None:
+            return   # clicked a group header
+        self._toggle(item)
+
+    def _toggle(self, item):
+        if item in self._checked_items:
+            self._checked_items.discard(item)
+            item.setText(0, "☐")
+            item.setForeground(1, QColor("#CCCCCC"))
+        else:
+            self._checked_items.add(item)
+            item.setText(0, "☑")
+            item.setForeground(1, QColor("#00BFA5"))
+        self._update_sel_label()
+
+    def _all_leaf_items(self):
+        leaves = []
+        for i in range(self._result_tree.topLevelItemCount()):
+            parent = self._result_tree.topLevelItem(i)
+            for j in range(parent.childCount()):
+                leaves.append(parent.child(j))
+        return leaves
+
+    def _select_all(self):
+        for item in self._all_leaf_items():
+            if item not in self._checked_items:
+                self._checked_items.add(item)
+                item.setText(0, "☑")
+                item.setForeground(1, QColor("#00BFA5"))
+        self._update_sel_label()
+
+    def _deselect_all(self):
+        for item in self._checked_items:
+            item.setText(0, "☐")
+            item.setForeground(1, QColor("#CCCCCC"))
+        self._checked_items.clear()
+        self._update_sel_label()
+
+    def _select_dupes_only(self):
+        """Check all but the first file in each group."""
+        self._deselect_all()
+        for i in range(self._result_tree.topLevelItemCount()):
+            parent = self._result_tree.topLevelItem(i)
+            for j in range(1, parent.childCount()):   # skip index 0 (keep one)
+                item = parent.child(j)
+                self._checked_items.add(item)
+                item.setText(0, "☑")
+                item.setForeground(1, QColor("#00BFA5"))
+        self._update_sel_label()
+
+    def _update_sel_label(self):
+        count = len(self._checked_items)
+        if count == 0:
+            self._sel_label.setText("")
+            return
+        total_sz = sum(i.data(2, Qt.UserRole) or 0 for i in self._checked_items)
+        self._sel_label.setText(f"✔ {count} selected  ·  {_fmt_size(total_sz)}")
+
+    # ── delete ────────────────────────────────────────────────────────────────
     def _delete_selected(self):
-        items = self._result_tree.selectedItems()
-        paths = [i.data(0, Qt.UserRole) for i in items if i.data(0, Qt.UserRole)]
-        if not paths:
+        if not self._checked_items:
             return
-        if QMessageBox.question(self, "Delete", f"Delete {len(paths)} file(s)?",
-                                QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+        count = len(self._checked_items)
+        total_sz = sum(i.data(2, Qt.UserRole) or 0 for i in self._checked_items)
+        if QMessageBox.question(
+            self, "Delete",
+            f"Permanently delete {count} file(s)  ({_fmt_size(total_sz)})?\nThis cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No
+        ) != QMessageBox.Yes:
             return
-        for path in paths:
+
+        failed = []
+        to_remove = list(self._checked_items)
+        for item in to_remove:
+            path = item.data(0, Qt.UserRole)
             try:
                 os.remove(path)
-            except Exception:
-                pass
-        self._scan()
+                # Remove leaf from tree
+                parent = item.parent()
+                parent.removeChild(item)
+                self._checked_items.discard(item)
+                # If group now has only 1 child, remove the whole group
+                if parent.childCount() <= 1:
+                    idx = self._result_tree.indexOfTopLevelItem(parent)
+                    self._result_tree.takeTopLevelItem(idx)
+                    # also discard that lone survivor from checked set
+                    if parent.childCount() == 1:
+                        self._checked_items.discard(parent.child(0))
+            except Exception as e:
+                failed.append(f"{path}: {e}")
+
+        # Recount wasted space across remaining groups
+        total_waste = 0
+        groups_left = 0
+        for i in range(self._result_tree.topLevelItemCount()):
+            p = self._result_tree.topLevelItem(i)
+            sz = p.data(2, Qt.UserRole) or 0
+            n = p.childCount()
+            if n > 1:
+                groups_left += 1
+                total_waste += sz * (n - 1)
+        self._summary.setText(f"{groups_left} duplicate groups  |  {_fmt_size(total_waste)} wasted")
+        self._update_sel_label()
+
+        if failed:
+            QMessageBox.warning(self, "Some deletions failed", "\n".join(failed))
 
 
 # ── Tab: Large Files ───────────────────────────────────────────────────────────
