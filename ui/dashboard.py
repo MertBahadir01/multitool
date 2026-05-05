@@ -71,7 +71,6 @@ TOOL_CARDS = {
         ("📄", "Text Merger", "Merge text files", "text_merger"),
         ("🗂️", "File Organizer", "Auto-sort files into subfolders", "smart_file_organizer"),
         ("🔍", "Duplicate Finder", "Find identical files by content hash", "duplicate_file_finder"),
-        ("🔒", "File Encryptor", "Encrypt and decrypt files with a password", "file_encryptor"),
     ],
     "media": [
         ("⬇️", "YouTube Downloader", "Download videos and playlists", "youtube_downloader"),
@@ -130,6 +129,7 @@ TOOL_CARDS = {
         ("🗄️",  "DB File Storage",   "Store & retrieve files in database",   "db_file_storage"),
         ("🛡️", "Password Strength", "Analyze password strength and entropy", "password_strength_analyzer"),
         ("🔑", "Password Generator", "Generate secure passwords", "password_generator"),
+        ("🔒", "File Encryptor", "Encrypt and decrypt files with a password", "file_encryptor"),
 
     ],
 }
