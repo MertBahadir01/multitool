@@ -1,4 +1,4 @@
-"""MultiTool Studio — Application Entry Point"""
+"""MultiTool Studio — Application Entry Pointd"""
 
 import sys
 import os
