@@ -83,6 +83,33 @@ def _parse_iso6709(text):
         return None
 
 
+def _fix_mojibake(text):
+    """Root-cause fix for the 'Â©' style corruption.
+
+    Pillow (and the IPTC/EXIF spec itself) treats these text fields as
+    Latin-1/ASCII, decoding them byte-for-byte. Many real-world tools write
+    UTF-8 into those same fields anyway (e.g. '©' as bytes C2 A9). Decoded
+    as Latin-1 that becomes the two characters 'Â' + '©' — a classic
+    mojibake pattern, not a display/font issue.
+
+    Fix: re-encode the (wrongly-decoded) text back to raw bytes as Latin-1,
+    then decode *those* bytes as UTF-8. If the text was never mis-decoded
+    in the first place, that round trip fails (raises) or produces
+    replacement characters, so we fall back to the original untouched —
+    this only "fixes" text that was actually broken, for any character,
+    not just '©'.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    try:
+        candidate = text.encode("latin-1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return text
+    if "\ufffd" in candidate:
+        return text
+    return candidate
+
+
 def _clean_value(value, max_len=300):
     """Some EXIF tags (MakerNote, UserComment, PrintIM, unknown vendor
     tags...) hold raw binary data. Dumped as text it shows up as a wall of
@@ -100,6 +127,10 @@ def _clean_value(value, max_len=300):
     text = str(value)
     if not text:
         return text
+
+    # Applied to every string that flows through here — EXIF, IPTC, XMP,
+    # ffprobe tags — since the mis-decoding bug isn't specific to one field.
+    text = _fix_mojibake(text)
 
     printable = sum(1 for ch in text if ch.isprintable() or ch in "\n\t")
     if printable / len(text) < 0.85:
@@ -126,9 +157,13 @@ def basic_file_info(path):
 
 
 def image_metadata(path):
+    """EXIF-derived fields only (Make/Model/Software/Artist/Copyright/...).
+    GPS, IPTC/IIM and XMP are handled by their own functions below and kept
+    in separate sections — see gps_metadata(), iptc_metadata(), xmp_metadata().
+    """
     try:
         from PIL import Image
-        from PIL.ExifTags import TAGS, GPSTAGS
+        from PIL.ExifTags import TAGS
     except ImportError:
         return {"note": "Pillow not installed — cannot read image metadata."}
 
@@ -146,48 +181,310 @@ def image_metadata(path):
 
             exif = img.getexif()
             if exif:
-                gps_info = {}
                 for tag_id, value in exif.items():
                     tag = TAGS.get(tag_id)
                     tag_name = tag if tag is not None else f"Unknown Tag ({tag_id})"
                     if tag_name == "GPSInfo":
-                        try:
-                            for gps_id, gps_val in value.items():
-                                gps_info[GPSTAGS.get(gps_id, gps_id)] = gps_val
-                        except Exception:
-                            pass
-                        continue
-                    # _clean_value() handles bytes/text and flags binary or
+                        continue  # separate [GPS] section — see gps_metadata()
+                    # _clean_value() handles bytes/text, flags binary or
                     # unreadable data (MakerNote, UserComment, unknown vendor
-                    # tags) instead of dumping raw replacement characters.
+                    # tags), and fixes the UTF-8-decoded-as-Latin-1 mojibake
+                    # bug (e.g. 'Â©' -> '©') for any field, not just Copyright.
                     data[str(tag_name)] = _clean_value(value)
-
-                if gps_info:
-                    # Decode a human-readable lat/long + map link BEFORE the
-                    # raw values below get stringified for the detail view.
-                    lat, lat_ref = gps_info.get("GPSLatitude"), gps_info.get("GPSLatitudeRef")
-                    lon, lon_ref = gps_info.get("GPSLongitude"), gps_info.get("GPSLongitudeRef")
-                    if lat and lon and lat_ref and lon_ref:
-                        lat_dec = _dms_to_decimal(lat, lat_ref)
-                        lon_dec = _dms_to_decimal(lon, lon_ref)
-                        if lat_dec is not None and lon_dec is not None:
-                            data["GPS Coordinates"] = f"{lat_dec:.6f}, {lon_dec:.6f}"
-                            data["Location (Map Link)"] = _maps_link(lat_dec, lon_dec)
-
-                    alt = gps_info.get("GPSAltitude")
-                    if alt is not None:
-                        alt_val = _safe_float(alt)
-                        data["GPS Altitude"] = f"{alt_val:.1f} m" if alt_val is not None else str(alt)
-
-                    gps_date = gps_info.get("GPSDateStamp")
-                    gps_time = gps_info.get("GPSTimeStamp")
-                    if gps_date:
-                        data["GPS Date/Time (UTC)"] = f"{gps_date} {gps_time or ''}".strip()
-
-                    for k, v in gps_info.items():
-                        data[f"GPS {k} (raw)"] = _clean_value(v)
     except Exception as e:
         data["error"] = f"Could not read image metadata: {e}"
+    return data
+
+
+def gps_metadata(path):
+    """[GPS] section — decoded from the EXIF GPSInfo IFD.
+
+    Kept separate from the main EXIF section (rather than prefixing every
+    key with 'GPS ') so it lines up with IPTC/XMP as its own namespace,
+    per the 'don't merge sources' requirement.
+
+    Root cause note: Image.Exif.items() only returns *top-level* IFD0
+    entries. For GPSInfo (tag 0x8825) that's just an integer byte offset,
+    not the resolved tag dict, so the old code's `value.items()` silently
+    failed inside its own try/except and GPS came back empty. The GPS IFD
+    has to be resolved explicitly via exif.get_ifd(GPSInfo).
+    """
+    try:
+        from PIL import Image
+        from PIL.ExifTags import GPSTAGS, IFD
+    except ImportError:
+        return {}
+
+    data = {}
+    try:
+        with Image.open(path) as img:
+            exif = img.getexif()
+            if not exif:
+                return {}
+
+            try:
+                gps_ifd = exif.get_ifd(IFD.GPSInfo)
+            except Exception:
+                gps_ifd = {}
+            if not gps_ifd:
+                return {}
+
+            gps_info = {GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
+
+            lat, lat_ref = gps_info.get("GPSLatitude"), gps_info.get("GPSLatitudeRef")
+            lon, lon_ref = gps_info.get("GPSLongitude"), gps_info.get("GPSLongitudeRef")
+            if lat and lon and lat_ref and lon_ref:
+                lat_dec = _dms_to_decimal(lat, lat_ref)
+                lon_dec = _dms_to_decimal(lon, lon_ref)
+                if lat_dec is not None and lon_dec is not None:
+                    data["Latitude"] = f"{lat_dec:.6f}"
+                    data["Longitude"] = f"{lon_dec:.6f}"
+                    data["Map Link"] = _maps_link(lat_dec, lon_dec)
+
+            alt = gps_info.get("GPSAltitude")
+            if alt is not None:
+                alt_val = _safe_float(alt)
+                data["Altitude"] = f"{alt_val:.1f} m" if alt_val is not None else str(alt)
+
+            gps_date = gps_info.get("GPSDateStamp")
+            gps_time = gps_info.get("GPSTimeStamp")
+            if gps_date:
+                data["Date/Time (UTC)"] = f"{gps_date} {gps_time or ''}".strip()
+
+            # Raw IFD values too, in case a caller needs the untouched rationals.
+            for k, v in gps_info.items():
+                data[f"{k} (raw)"] = _clean_value(v)
+    except Exception as e:
+        data["error"] = f"Could not read GPS metadata: {e}"
+    return data
+
+
+# ---------------------------------------------------------------------------
+# IPTC / IIM
+# ---------------------------------------------------------------------------
+# Root cause of "IPTC/IIM missing": IPTC data lives in a completely different
+# JPEG segment (APP13 "Photoshop 3.0", resource block 0x0404) than EXIF
+# (APP1 "Exif\0\0"). The old code only ever called img.getexif(), so this
+# segment was never even looked at. Pillow already parses it into
+# img.info["photoshop"] when opening the file — we just weren't reading it.
+
+_IPTC_TAGS = {
+    (2, 0): "Record Version",
+    (2, 3): "Object Type Reference",
+    (2, 5): "Object Name",
+    (2, 7): "Edit Status",
+    (2, 10): "Urgency",
+    (2, 15): "Category",
+    (2, 20): "Supplemental Category",
+    (2, 22): "Fixture Identifier",
+    (2, 25): "Keywords",
+    (2, 40): "Special Instructions",
+    (2, 55): "Date Created",
+    (2, 60): "Time Created",
+    (2, 62): "Digital Creation Date",
+    (2, 63): "Digital Creation Time",
+    (2, 65): "Originating Program",
+    (2, 70): "Program Version",
+    (2, 75): "Object Cycle",
+    (2, 80): "By-line",
+    (2, 85): "By-line Title",
+    (2, 90): "City",
+    (2, 92): "Sub-location",
+    (2, 95): "Province/State",
+    (2, 100): "Country/Primary Location Code",
+    (2, 101): "Country/Primary Location Name",
+    (2, 103): "Original Transmission Reference",
+    (2, 105): "Headline",
+    (2, 110): "Credit",
+    (2, 115): "Source",
+    (2, 116): "Copyright Notice",
+    (2, 118): "Contact",
+    (2, 120): "Caption/Abstract",
+    (2, 122): "Writer/Editor",
+}
+
+# Marks the field as the character-set indicator escape sequence. When it
+# contains ESC % G, the rest of the IIM record is UTF-8 per the IPTC spec.
+_IPTC_CHARSET_TAG = (1, 90)
+_IPTC_UTF8_MARKER = b"\x1b%G"
+
+
+def _decode_iptc_bytes(value, prefer_utf8):
+    """IIM text fields are raw bytes with no per-field encoding tag; the
+    encoding is set once for the whole record via the (1,90) CodedCharacterSet
+    marker. Try that, then fall back safely so nothing crashes on odd bytes."""
+    if not isinstance(value, bytes):
+        return _clean_value(value)
+    encodings = ["utf-8", "cp1252", "latin-1"] if prefer_utf8 else ["cp1252", "utf-8", "latin-1"]
+    for enc in encodings:
+        try:
+            return _clean_value(value.decode(enc))
+        except Exception:
+            continue
+    return _clean_value(value.decode("latin-1", errors="replace"))
+
+
+def iptc_metadata(path):
+    """[IPTC / IIM] section, read via Pillow's IptcImagePlugin."""
+    try:
+        from PIL import Image, IptcImagePlugin
+    except ImportError:
+        return {}
+
+    data = {}
+    try:
+        with Image.open(path) as img:
+            info = IptcImagePlugin.getiptcinfo(img)
+    except Exception as e:
+        return {"error": f"Could not read IPTC/IIM metadata: {e}"}
+
+    if not info:
+        return {}
+
+    prefer_utf8 = _IPTC_UTF8_MARKER in (info.get(_IPTC_CHARSET_TAG) or b"")
+
+    try:
+        for key, value in info.items():
+            if key == _IPTC_CHARSET_TAG:
+                continue
+            name = _IPTC_TAGS.get(key, f"Tag {key[0]}:{key[1]}")
+            if isinstance(value, list):
+                # Repeated fields (Keywords, Supplemental Category, ...) —
+                # keep as a real list so JSON export preserves the array.
+                decoded = [_decode_iptc_bytes(v, prefer_utf8) for v in value]
+                data[name] = decoded
+            else:
+                data[name] = _decode_iptc_bytes(value, prefer_utf8)
+    except Exception as e:
+        data["error"] = f"Could not decode IPTC/IIM metadata: {e}"
+
+    return data
+
+
+# ---------------------------------------------------------------------------
+# XMP
+# ---------------------------------------------------------------------------
+# Root cause of "XMP missing": same story as IPTC — XMP lives in its own
+# APP1 segment ("http://ns.adobe.com/xap/1.0/\0..."), separate from the
+# EXIF APP1 segment. Pillow's JPEG plugin already extracts that raw XML
+# packet into img.info["xmp"]; the old code never read it.
+
+_XMP_NS_PREFIXES = {
+    "http://purl.org/dc/elements/1.1/": "dc",
+    "http://ns.adobe.com/xap/1.0/": "xmp",
+    "http://ns.adobe.com/xap/1.0/rights/": "xmpRights",
+    "http://ns.adobe.com/xap/1.0/mm/": "xmpMM",
+    "http://ns.adobe.com/photoshop/1.0/": "photoshop",
+    "http://ns.adobe.com/tiff/1.0/": "tiff",
+    "http://ns.adobe.com/exif/1.0/": "exif",
+    "http://cipa.jp/exif/1.0/": "exifEX",
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#": "rdf",
+    "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/": "Iptc4xmpCore",
+    "http://iptc.org/std/Iptc4xmpExt/2008-02-29/": "Iptc4xmpExt",
+    "http://ns.adobe.com/pdf/1.3/": "pdf",
+    "http://www.w3.org/1999/xhtml": "xhtml",
+}
+
+_RDF_NS = "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}"
+
+
+def _xmp_qname(tag):
+    """'{uri}local' -> 'prefix:local', using known namespaces where
+    possible and falling back to a generic-but-still-readable prefix
+    derived from the URI for anything unrecognized (never dropped)."""
+    if not tag.startswith("{"):
+        return tag
+    uri, local = tag[1:].split("}", 1)
+    prefix = _XMP_NS_PREFIXES.get(uri)
+    if not prefix:
+        prefix = uri.rstrip("/").rsplit("/", 1)[-1] or "ns"
+    return f"{prefix}:{local}"
+
+
+def _rdf_list_items(elem):
+    """Collect rdf:li text from a Bag/Seq/Alt container (e.g. dc:subject,
+    dc:creator) so arrays like Keywords survive as real lists."""
+    items = []
+    for li in elem.iter(f"{_RDF_NS}li"):
+        if li.text and li.text.strip():
+            items.append(li.text.strip())
+    return items
+
+
+def _xmp_property_value(child):
+    """Read one XMP property element: prefers an rdf:Bag/Seq/Alt list,
+    then direct text, then any nested text, then an rdf:resource attribute.
+    Returns None only if the property genuinely has nothing to show."""
+    list_items = _rdf_list_items(child)
+    if list_items:
+        return list_items
+
+    if child.text and child.text.strip():
+        return child.text.strip()
+
+    nested = [e.text.strip() for e in child.iter() if e is not child and e.text and e.text.strip()]
+    if nested:
+        return nested
+
+    resource = child.attrib.get(f"{_RDF_NS}resource")
+    if resource:
+        return resource
+
+    return None
+
+
+def xmp_metadata(path):
+    """[XMP] section. Walks every rdf:Description generically instead of
+    hard-coding a fixed field list, so nothing present in the packet is
+    silently dropped."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return {"note": "Pillow not installed — cannot read XMP metadata."}
+
+    try:
+        with Image.open(path) as img:
+            xmp_raw = img.info.get("xmp")
+    except Exception as e:
+        return {"error": f"Could not open file for XMP metadata: {e}"}
+
+    if not xmp_raw:
+        return {}
+
+    if isinstance(xmp_raw, bytes):
+        xmp_text = xmp_raw.decode("utf-8", errors="replace")
+    else:
+        xmp_text = str(xmp_raw)
+
+    data = {}
+    try:
+        root = ET.fromstring(xmp_text)
+        for desc in root.iter(f"{_RDF_NS}Description"):
+            # Compact form: properties written as plain XML attributes
+            # directly on rdf:Description (e.g. xmp:CreateDate="...").
+            for attr, value in desc.attrib.items():
+                if attr.endswith("about"):
+                    continue
+                name = _xmp_qname(attr)
+                data.setdefault(name, _clean_value(value))
+
+            # Expanded form: properties as child elements.
+            for child in list(desc):
+                name = _xmp_qname(child.tag)
+                value = _xmp_property_value(child)
+                if value is None:
+                    continue
+                if isinstance(value, list):
+                    data[name] = [_clean_value(v) for v in value]
+                else:
+                    data[name] = _clean_value(value)
+    except ET.ParseError as e:
+        return {"error": f"Could not parse XMP XML: {e}"}
+    except Exception as e:
+        return {"error": f"Could not read XMP metadata: {e}"}
+
+    if not data:
+        data["note"] = "XMP packet present but no readable properties found."
     return data
 
 
@@ -340,6 +637,15 @@ def read_metadata(path):
 
     if ext in IMAGE_EXTS:
         sections["Image / EXIF"] = image_metadata(path)
+        gps = gps_metadata(path)
+        if gps:
+            sections["GPS"] = gps
+        iptc = iptc_metadata(path)
+        if iptc:
+            sections["IPTC / IIM"] = iptc
+        xmp = xmp_metadata(path)
+        if xmp:
+            sections["XMP"] = xmp
     elif ext in OOXML_EXTS:
         sections["Document Properties"] = ooxml_metadata(path)
     elif ext in PDF_EXTS:

@@ -40,7 +40,8 @@ import pytest
 # ---------------------------------------------------------------------------
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_SERVICE_PATH = os.path.join(os.path.dirname(_HERE), "metadata_service.py")
+#_SERVICE_PATH = os.path.join(os.path.dirname(_HERE), "metadata_service.py")
+_SERVICE_PATH = os.path.join(_HERE, "metadata_service.py")
 _FIXTURES = os.path.join(_HERE, "fixtures")
 
 

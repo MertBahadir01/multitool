@@ -108,6 +108,14 @@ class MetadataReaderTool(QWidget):
     # Metadata display
     # ------------------------------------------------------------------
 
+    def _display_value(self, value):
+        """Tree/text view formatting only — JSON export uses the raw value
+        (e.g. a real list for Keywords) unchanged, so arrays aren't flattened
+        away, they're just joined here for human-readable display."""
+        if isinstance(value, list):
+            return "; ".join(str(v) for v in value)
+        return str(value)
+
     def _populate(self, path):
         self.tree.clear()
         try:
@@ -124,7 +132,7 @@ class MetadataReaderTool(QWidget):
             section_item.setFont(0, font)
             self.tree.addTopLevelItem(section_item)
             for key, value in fields.items():
-                child = QTreeWidgetItem([str(key), str(value)])
+                child = QTreeWidgetItem([str(key), self._display_value(value)])
                 section_item.addChild(child)
             section_item.setExpanded(True)
 
@@ -135,7 +143,7 @@ class MetadataReaderTool(QWidget):
         for section_name, fields in self._last_sections.items():
             lines.append(f"[{section_name}]")
             for key, value in fields.items():
-                lines.append(f"  {key}: {value}")
+                lines.append(f"  {key}: {self._display_value(value)}")
             lines.append("")
         return "\n".join(lines)
 
