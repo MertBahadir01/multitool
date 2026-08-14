@@ -73,6 +73,7 @@ moviepy>=1.0.3
 
 mutagen>=1.47.0     # ID3/Vorbis/etc. tag reading for audio files
 pypdf>=4.0.0         # PDF metadata (author, title, page count, etc.)
+pypdf2              # PDF metadata (author, title, page count, etc.)
 
 
 # =============================================================================
