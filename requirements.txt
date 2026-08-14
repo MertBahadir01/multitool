@@ -55,6 +55,9 @@ PyInstaller>=6.0.0
 # OPTIONAL — install only if needed
 # =============================================================================
 
+##pip install piexif   # test-tooling only, not a runtime dependency
+##pip install pytest
+
 # ── Computer Vision / Camera ─────────────────────────────────────────────────
 # Needed by: qr_scanner, face_reader, object_detector
 opencv-python-headless>=4.8.0
@@ -66,6 +69,10 @@ pytesseract>=0.3.10
 
 # ── MP4 → MP3 (fallback if ffmpeg not installed) ─────────────────────────────
 moviepy>=1.0.3
+
+
+mutagen>=1.47.0     # ID3/Vorbis/etc. tag reading for audio files
+pypdf>=4.0.0         # PDF metadata (author, title, page count, etc.)
 
 
 # =============================================================================

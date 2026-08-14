@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QPushButton, QComboBox, QCheckBox, QProgressBar,
     QScrollArea, QTabWidget, QTableWidget, QTableWidgetItem,
     QFileDialog, QTextEdit, QSpinBox, QGroupBox, QSizePolicy,
-    QMessageBox, QSplitter, QHeaderView,
+    QMessageBox, QSplitter, QHeaderView, QFrame,
 )
 
 from .playlist_parser import fetch_info, fetch_formats, format_duration, human_size
@@ -255,7 +255,17 @@ class YouTubeDownloaderTool(QWidget):
         self._pl_layout.setAlignment(Qt.AlignTop)
         self._pl_layout.setSpacing(6)
     
-        pl_lay.addWidget(self._pl_container)
+        # Scrolls internally once the list gets long, instead of stretching
+        # the whole page — keeps Save Settings / Start / Downloads in view.
+        pl_scroll = QScrollArea()
+        pl_scroll.setWidgetResizable(True)
+        pl_scroll.setFrameShape(QFrame.NoFrame)
+        pl_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        pl_scroll.setMinimumHeight(200)
+        pl_scroll.setMaximumHeight(1100)
+        pl_scroll.setWidget(self._pl_container)
+    
+        pl_lay.addWidget(pl_scroll)
     
         body_lay.addWidget(pl_box)
     
@@ -323,7 +333,17 @@ class YouTubeDownloaderTool(QWidget):
         self._dl_container_lay.setAlignment(Qt.AlignTop)
         self._dl_container_lay.setSpacing(6)
     
-        dl_lay.addWidget(self._dl_container)
+        # Same fix as the playlist list above: scrolls internally so a big
+        # batch of downloads doesn't push the rest of the page off-screen.
+        dl_scroll = QScrollArea()
+        dl_scroll.setWidgetResizable(True)
+        dl_scroll.setFrameShape(QFrame.NoFrame)
+        dl_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        dl_scroll.setMinimumHeight(200)
+        dl_scroll.setMaximumHeight(1100)
+        dl_scroll.setWidget(self._dl_container)
+    
+        dl_lay.addWidget(dl_scroll)
         body_lay.addWidget(dl_box)
     
         # =========================

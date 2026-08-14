@@ -27,6 +27,8 @@ optional_libs = [
     'pyzbar',
     'pytesseract',
     'moviepy'
+    'mutagen'
+    'pypdf'
 ]
 
 # Merge if needed (you can comment this line if you don't want optional ones bundled)

@@ -184,7 +184,8 @@ def _register_tools():
         ("tcp_udp_tool",      "tools.tcp_udp_tool",      "TCPUDPTool"),
         ("lan_file_transfer", "tools.lan_file_transfer",  "LANFileTransferTool"),
         ("db_file_storage",   "tools.db_file_storage",    "DBFileStorageTool"),
-        ("youtube_downloader", "tools.youtube_downloader", "YouTubeDownloaderTool")
+        ("youtube_downloader", "tools.youtube_downloader", "YouTubeDownloaderTool"),
+        ("metadata_reader", "tools.metadata_reader", "MetadataReaderTool")
     ]
     import importlib
     for tool_id, module_path, class_name in tool_modules:
