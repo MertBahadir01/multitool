@@ -64,9 +64,9 @@ TOOL_CARDS = {
     ],
     "file": [
         ("🗂️", "File Manager",    "Browse, duplicate scan & cleaner",  "file_manager"),
+        ("🔎", "Metadata Reader", "View EXIF, document & media metadata", "metadata_reader"),
         ("#️⃣", "File Hash", "MD5/SHA hash of files", "file_hash"),
         ("🔢", "Number Prefix", "Add number prefixes to filenames", "number_prefix"),
-        ("🔎", "Metadata Reader", "View EXIF, document & media metadata", "metadata_reader"),
         ("✏️", "Batch Renamer", "Rename files in bulk", "batch_renamer"),
         ("📊", "Size Analyzer", "Analyze folder sizes", "file_size_analyzer"),
         ("📄", "Text Merger", "Merge text files", "text_merger"),

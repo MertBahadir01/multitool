@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from .playlist_parser import fetch_info, fetch_formats, format_duration, human_size
-from .download_manager import DownloadManager
+from .download_manager import DownloadManager, CANCEL_REASON
 from . import history_service as hs
 
 
@@ -108,6 +108,20 @@ class DownloadRow(QWidget):
             self.lbl_status.setText("✗  Failed")
             self.lbl_status.setStyleSheet("color: #F44336;")
 
+    def mark_stopped(self):
+        """Distinct from Failed — this item can be picked back up with
+        Resume, it didn't error out."""
+        self.lbl_speed.setText("")
+        self.lbl_eta.setText("")
+        self.lbl_status.setText("⏸  Stopped")
+        self.lbl_status.setStyleSheet("color: #FFB300;")
+
+    def reset_for_resume(self):
+        self.lbl_status.setText("Queued")
+        self.lbl_status.setStyleSheet("color: #CCCCCC;")
+        self.lbl_speed.setText("—")
+        self.lbl_eta.setText("—")
+
 
 # ---------------------------------------------------------------------------
 # Main tool widget
@@ -128,6 +142,16 @@ class YouTubeDownloaderTool(QWidget):
         self._pl_checks:   list[tuple[QCheckBox, dict]] = []
         self._completed_count = 0
         self._total_count     = 0
+
+        # Stop/Resume state. _pending_entries holds the entries from the
+        # current batch that haven't completed successfully yet — either
+        # still queued or interrupted by Stop. Resume re-launches exactly
+        # these, with the same output dir/format/quality/concurrency as the
+        # original run, so yt-dlp's default partial-file resume can pick up
+        # any .part files where they left off instead of starting over.
+        self._pending_entries: dict[str, dict] = {}
+        self._launch_settings = None
+        self._was_stopped     = False
 
         self._manager.item_progress.connect(self._on_item_progress)
         self._manager.item_done.connect(self._on_item_done)
@@ -261,7 +285,7 @@ class YouTubeDownloaderTool(QWidget):
         pl_scroll.setWidgetResizable(True)
         pl_scroll.setFrameShape(QFrame.NoFrame)
         pl_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        pl_scroll.setMinimumHeight(200)
+        pl_scroll.setMinimumHeight(230)
         pl_scroll.setMaximumHeight(1100)
         pl_scroll.setWidget(self._pl_container)
     
@@ -302,15 +326,25 @@ class YouTubeDownloaderTool(QWidget):
     
         self.btn_start = QPushButton("Start Download")
         self.btn_cancel = QPushButton("Cancel")
+        self.btn_resume = QPushButton("Resume")
     
         self.btn_cancel.setEnabled(False)
+        self.btn_resume.setEnabled(False)
+        self.btn_resume.setVisible(False)
+        self.btn_resume.setToolTip(
+            "Continue the items that were stopped, at the same format/quality "
+            "as the original run — yt-dlp resumes partially-downloaded files "
+            "automatically where the server supports it."
+        )
     
         # keep working logic
         self.btn_start.clicked.connect(self._start_download)
         self.btn_cancel.clicked.connect(self._cancel_download)
+        self.btn_resume.clicked.connect(self._resume_download)
     
         btn_row.addWidget(self.btn_start)
         btn_row.addWidget(self.btn_cancel)
+        btn_row.addWidget(self.btn_resume)
         btn_row.addStretch()
     
         body_lay.addLayout(btn_row)
@@ -339,7 +373,7 @@ class YouTubeDownloaderTool(QWidget):
         dl_scroll.setWidgetResizable(True)
         dl_scroll.setFrameShape(QFrame.NoFrame)
         dl_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        dl_scroll.setMinimumHeight(200)
+        dl_scroll.setMinimumHeight(230)
         dl_scroll.setMaximumHeight(1100)
         dl_scroll.setWidget(self._dl_container)
     
@@ -376,7 +410,7 @@ class YouTubeDownloaderTool(QWidget):
         filter_row = QHBoxLayout()
         filter_row.addWidget(QLabel("Filter:"))
         self.cmb_filter = QComboBox()
-        self.cmb_filter.addItems(["All", "Completed", "Failed"])
+        self.cmb_filter.addItems(["All", "Completed", "Failed", "Stopped"])
         self.cmb_filter.setFixedWidth(130)
         self.cmb_filter.currentTextChanged.connect(self._load_history)
         btn_refresh = QPushButton("Refresh")
@@ -602,6 +636,9 @@ class YouTubeDownloaderTool(QWidget):
         self.bar_global.setValue(0)
         self._completed_count = 0
         self._total_count     = len(entries)
+        self._was_stopped     = False
+        self.btn_resume.setEnabled(False)
+        self.btn_resume.setVisible(False)
 
         for entry in entries:
             row = DownloadRow(entry["title"])
@@ -615,19 +652,49 @@ class YouTubeDownloaderTool(QWidget):
             )
             entry["_hist_id"] = hist_id
 
+        self._pending_entries = {e["id"]: e for e in entries}
+        # Locked in for the whole batch (including any later Resume) so the
+        # output filename yt-dlp computes stays identical — that's what
+        # lets it recognize and continue an existing .part file instead of
+        # starting the download over from zero.
+        self._launch_settings = (self._output_dir, self._current_fmt, quality_text, self.spin_conc.value())
+
+        self._launch(entries)
+
+    def _resume_download(self):
+        entries = list(self._pending_entries.values())
+        if not entries or not self._launch_settings:
+            return
+
+        for entry in entries:
+            row = self._item_rows.get(entry["id"])
+            if row:
+                row.reset_for_resume()
+            hist_id = entry.get("_hist_id")
+            if hist_id:
+                hs.update_status(hist_id, "Downloading")
+
+        self.txt_failed.clear()
+        self.btn_resume.setEnabled(False)
+        self._launch(entries)
+
+    def _launch(self, entries):
+        output_dir, fmt, quality_text, concurrency = self._launch_settings
         self.btn_start.setEnabled(False)
         self.btn_cancel.setEnabled(True)
-
-        self._manager.start_downloads(
-            entries, self._output_dir,
-            self._current_fmt, quality_text,
-            self.spin_conc.value(),
-        )
+        self._manager.start_downloads(entries, output_dir, fmt, quality_text, concurrency)
 
     def _cancel_download(self):
+        self._was_stopped = True
         self._manager.cancel_all()
         self.btn_cancel.setEnabled(False)
-        self.btn_start.setEnabled(True)
+        # Don't re-enable Start here — some workers may still be winding
+        # down cooperatively. Starting a new batch while the old manager's
+        # threads are still finishing would drop the last reference to a
+        # still-running QThread, which is the same class of bug that used
+        # to crash the app on Stop. btn_start/btn_resume get re-enabled in
+        # _on_all_done() once the manager confirms everything actually
+        # stopped.
 
     def _on_item_progress(self, item_id: str, pct: float, speed: str, eta: str):
         if item_id in self._item_rows:
@@ -635,18 +702,32 @@ class YouTubeDownloaderTool(QWidget):
 
     def _on_item_done(self, item_id: str, ok: bool, reason: str, path: str):
         self._completed_count += 1
-        pct = int(self._completed_count / self._total_count * 100)
+        pct = int(self._completed_count / self._total_count * 100) if self._total_count else 0
         self.bar_global.setValue(pct)
 
+        stopped = (reason == CANCEL_REASON)
+
+        if ok:
+            self._pending_entries.pop(item_id, None)
+
         if item_id in self._item_rows:
-            self._item_rows[item_id].mark_done(ok, reason)
+            if stopped:
+                self._item_rows[item_id].mark_stopped()
+            else:
+                self._item_rows[item_id].mark_done(ok, reason)
 
         for entry in (self._info["entries"] if self._info else []):
             if entry["id"] == item_id and "_hist_id" in entry:
-                hs.update_status(entry["_hist_id"], "Completed" if ok else "Failed")
+                if ok:
+                    status = "Completed"
+                elif stopped:
+                    status = "Stopped"
+                else:
+                    status = "Failed"
+                hs.update_status(entry["_hist_id"], status)
                 break
 
-        if not ok and reason:
+        if not ok and reason and not stopped:
             title = next(
                 (e.get("title", item_id) for e in (self._info["entries"] if self._info else [])
                  if e["id"] == item_id),
@@ -657,7 +738,14 @@ class YouTubeDownloaderTool(QWidget):
     def _on_all_done(self, completed: int, total: int, failures: list):
         self.btn_cancel.setEnabled(False)
         self.btn_start.setEnabled(True)
-        self.bar_global.setValue(100)
+
+        can_resume = self._was_stopped and bool(self._pending_entries)
+        self.btn_resume.setVisible(can_resume)
+        self.btn_resume.setEnabled(can_resume)
+        self._was_stopped = False
+
+        if not can_resume:
+            self.bar_global.setValue(100)
         self._load_history()
 
     # ------------------------------------------------------------------
@@ -679,6 +767,8 @@ class YouTubeDownloaderTool(QWidget):
                 status_item.setForeground(Qt.darkGreen)
             elif row["status"] == "Failed":
                 status_item.setForeground(Qt.red)
+            elif row["status"] == "Stopped":
+                status_item.setForeground(Qt.darkYellow)
             self.tbl_history.setItem(r, 4, status_item)
             self.tbl_history.setItem(r, 5, QTableWidgetItem(row["timestamp"] or ""))
 
