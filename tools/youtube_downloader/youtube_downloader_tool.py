@@ -15,9 +15,27 @@ from PySide6.QtWidgets import (
     QMessageBox, QSplitter, QHeaderView, QFrame,
 )
 
-from .playlist_parser import fetch_info, fetch_formats, format_duration, human_size
-from .download_manager import DownloadManager, CANCEL_REASON
 from . import history_service as hs
+from .ytdlp_update_worker import YtDlpUpdateWorker
+from services import ytdlp_updater
+
+# playlist_parser / download_manager both do `import yt_dlp` at module level.
+# In the worst case — a frozen build where no yt-dlp copy is available at
+# all yet (no seed shipped, no vendor copy installed, nothing on
+# sys.path) — that import fails. Rather than let this whole tool disappear
+# from the app (main_window's tool loader silently skips any tool module
+# that fails to import), fall back to a minimal "install yt-dlp" screen
+# that only needs the updater (which has no yt_dlp dependency itself) to
+# get the app fully working again, no rebuild required.
+try:
+    from .playlist_parser import fetch_info, fetch_formats, format_duration, human_size
+    from .download_manager import DownloadManager, CANCEL_REASON
+    _YTDLP_IMPORT_ERROR = None
+except Exception as _e:  # noqa: BLE001
+    fetch_info = fetch_formats = format_duration = human_size = None
+    DownloadManager = None
+    CANCEL_REASON = "Cancelled by user"
+    _YTDLP_IMPORT_ERROR = _e
 
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m|\x1b\[[0-9;]*[A-Za-z]")
@@ -131,6 +149,15 @@ class YouTubeDownloaderTool(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        # yt-dlp self-updater state — needed in both the normal and the
+        # fallback ("engine missing") UI below.
+        self._ytdlp_update_worker = None
+
+        if _YTDLP_IMPORT_ERROR is not None:
+            self._build_missing_engine_ui()
+            return
+
         self._info         = None
         self._formats      = []
         self._item_rows:   dict[str, DownloadRow] = {}
@@ -158,6 +185,53 @@ class YouTubeDownloaderTool(QWidget):
         self._manager.all_done.connect(self._on_all_done)
 
         self._build_ui()
+
+    # ------------------------------------------------------------------
+    # Fallback UI — shown only if yt-dlp couldn't be imported at all
+    # ------------------------------------------------------------------
+
+    def _build_missing_engine_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 24, 24, 24)
+        root.setSpacing(12)
+        root.addStretch()
+
+        title = QLabel("yt-dlp engine not found")
+        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setAlignment(Qt.AlignCenter)
+
+        msg = QLabel(
+            "MultiTool Studio couldn't find a working copy of the yt-dlp "
+            "download engine. This can happen on a fresh install if it "
+            "wasn't bundled. Click below to download it automatically — "
+            "an internet connection is required."
+        )
+        msg.setWordWrap(True)
+        msg.setAlignment(Qt.AlignCenter)
+        msg.setStyleSheet("color: #AAAAAA;")
+
+        self.lbl_ytdlp_version = QLabel("yt-dlp engine: not installed")
+        self.lbl_ytdlp_version.setAlignment(Qt.AlignCenter)
+        self.lbl_ytdlp_version.setStyleSheet("color: #888888;")
+
+        self.btn_update_ytdlp = QPushButton("Download yt-dlp")
+        self.btn_update_ytdlp.setFixedWidth(220)
+        self.btn_update_ytdlp.clicked.connect(self._update_ytdlp)
+
+        for w in (title, msg, self.lbl_ytdlp_version):
+            row = QHBoxLayout()
+            row.addStretch()
+            row.addWidget(w)
+            row.addStretch()
+            root.addLayout(row)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(self.btn_update_ytdlp)
+        btn_row.addStretch()
+        root.addLayout(btn_row)
+
+        root.addStretch()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -194,7 +268,29 @@ class YouTubeDownloaderTool(QWidget):
         url_row.addWidget(self.url_input)
         url_row.addWidget(self.btn_fetch)
         root.addLayout(url_row)
-    
+
+        # =========================
+        # YT-DLP ENGINE / UPDATER
+        # =========================
+        engine_row = QHBoxLayout()
+
+        self.lbl_ytdlp_version = QLabel()
+        self.lbl_ytdlp_version.setStyleSheet("color: #888888;")
+
+        self.btn_update_ytdlp = QPushButton("Check for yt-dlp Update")
+        self.btn_update_ytdlp.setFixedWidth(190)
+        self.btn_update_ytdlp.setToolTip(
+            "Checks PyPI for a newer yt-dlp release and installs it "
+            "automatically if one is available — no manual download needed."
+        )
+        self.btn_update_ytdlp.clicked.connect(self._update_ytdlp)
+
+        engine_row.addWidget(self.lbl_ytdlp_version, 1)
+        engine_row.addWidget(self.btn_update_ytdlp)
+        root.addLayout(engine_row)
+
+        self._refresh_ytdlp_version_label()
+
         # =========================
         # MAIN SCROLL AREA
         # =========================
@@ -747,6 +843,73 @@ class YouTubeDownloaderTool(QWidget):
         if not can_resume:
             self.bar_global.setValue(100)
         self._load_history()
+
+    # ------------------------------------------------------------------
+    # yt-dlp self-updater
+    # ------------------------------------------------------------------
+
+    def _refresh_ytdlp_version_label(self):
+        version = ytdlp_updater.get_installed_version()
+        self.lbl_ytdlp_version.setText(f"yt-dlp engine: v{version}")
+
+    def _update_ytdlp(self):
+        if self._ytdlp_update_worker is not None:
+            return  # a check/update is already running
+
+        self.btn_update_ytdlp.setEnabled(False)
+        self.btn_update_ytdlp.setText("Checking…")
+
+        worker = YtDlpUpdateWorker(self)
+        worker.progress.connect(self._on_ytdlp_update_progress)
+        worker.finished_ok.connect(self._on_ytdlp_update_finished)
+        worker.failed.connect(self._on_ytdlp_update_failed)
+        # Mirrors the pattern used for downloads: only drop the reference
+        # once Qt tells us the thread has actually finished, never while
+        # it might still be running.
+        worker.finished.connect(self._on_ytdlp_update_thread_finished)
+        self._ytdlp_update_worker = worker
+        worker.start()
+
+    def _on_ytdlp_update_progress(self, downloaded: int, total: int):
+        if total:
+            pct = int(downloaded / total * 100)
+            self.btn_update_ytdlp.setText(f"Downloading… {pct}%")
+        else:
+            mb = downloaded / (1024 * 1024)
+            self.btn_update_ytdlp.setText(f"Downloading… {mb:.1f} MB")
+
+    def _on_ytdlp_update_finished(self, status: str, current: str, latest: str):
+        if _YTDLP_IMPORT_ERROR is not None:
+            # We got here from the "engine missing" fallback screen — even
+            # in the "up_to_date" case there was nothing usable before, so
+            # a fresh copy was always installed.
+            QMessageBox.information(
+                self, "yt-dlp Installed",
+                f"yt-dlp v{latest} was installed successfully.\n\n"
+                "Please reopen the YouTube Downloader tool (or restart "
+                "MultiTool Studio) to start using it.",
+            )
+        elif status == "up_to_date":
+            QMessageBox.information(
+                self, "yt-dlp Update",
+                f"yt-dlp is already up to date (v{current}).",
+            )
+        else:
+            QMessageBox.information(
+                self, "yt-dlp Update",
+                f"yt-dlp updated from v{current} to v{latest}.\n\n"
+                "The new version will be used the next time MultiTool "
+                "Studio is started.",
+            )
+        self._refresh_ytdlp_version_label()
+
+    def _on_ytdlp_update_failed(self, message: str):
+        QMessageBox.warning(self, "yt-dlp Update Failed", message)
+
+    def _on_ytdlp_update_thread_finished(self):
+        self.btn_update_ytdlp.setEnabled(True)
+        self.btn_update_ytdlp.setText("Check for yt-dlp Update")
+        self._ytdlp_update_worker = None
 
     # ------------------------------------------------------------------
     # History tab

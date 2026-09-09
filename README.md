@@ -26,6 +26,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## To build the .exe:
+pip install -r requirements.txt
+python scripts/prepare_ytdlp_seed.py   # already done for you, re-run if you want a newer starting version
+pyinstaller build.spec
+
 ### Requirements
 
 | Package | Version | Purpose |

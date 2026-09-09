@@ -6,6 +6,13 @@ import os
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Must run before ANYTHING else imports yt_dlp (directly or indirectly, e.g.
+# via ui.main_window -> ... -> tools.youtube_downloader). This makes sure a
+# self-updated copy of yt-dlp (see services/ytdlp_updater.py) is what gets
+# imported, both in normal runs and once packaged as a PyInstaller .exe.
+from services import ytdlp_updater
+ytdlp_updater.bootstrap()
+
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt, QEventLoop
 from PySide6.QtGui import QIcon
