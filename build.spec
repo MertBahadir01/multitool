@@ -1,37 +1,26 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import os
 from PyInstaller.utils.hooks import collect_submodules
 from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
 
 block_cipher = None
 
-SPEC_DIR = os.path.dirname(os.path.abspath(SPEC))
-YTDLP_SEED_DIR = os.path.join(SPEC_DIR, 'resources', 'ytdlp_seed', 'yt_dlp')
-
-# yt-dlp is deliberately handled differently from every other dependency
-# below (see services/ytdlp_updater.py for the full explanation): it is
-# EXCLUDED from Analysis rather than bundled normally, and instead a seed
-# copy is shipped as plain data files under ytdlp_seed/. That's what lets
-# "Update yt-dlp" inside the app replace it later without rebuilding the
-# .exe — a version PyInstaller had compiled into its own frozen module
-# archive could never be swapped out at runtime.
-if not os.path.isfile(os.path.join(YTDLP_SEED_DIR, 'version.py')):
-    raise SystemExit(
-        "\n"
-        "ERROR: resources/ytdlp_seed/yt_dlp is missing or empty.\n"
-        "Run this first, from the project root, before building:\n"
-        "\n"
-        "    python scripts/prepare_ytdlp_seed.py\n"
-        "\n"
-        "This copies the currently pip-installed yt-dlp package into "
-        "resources/ytdlp_seed/ so the .exe has a working copy on first "
-        "run (before the user ever clicks \"Update yt-dlp\"). See "
-        "docs/YT_DLP_UPDATER.md for details.\n"
-    )
-
-# Core + required libs  — NOTE: yt_dlp is intentionally NOT in this list,
-# see the comment above and docs/YT_DLP_UPDATER.md.
+# Core + required libs.
+#
+# yt_dlp IS included here and bundled completely normally, like every
+# other dependency. This matters for the "Update yt-dlp" feature
+# (services/ytdlp_updater.py): it's tempting to think an updatable copy
+# needs yt_dlp EXCLUDED from the frozen build so a newer copy on disk can
+# "win" — but that backfires, because PyInstaller only detects a
+# dependency (stdlib or third-party) as needed by scanning the real source
+# of each module it bundles. Exclude yt_dlp and PyInstaller never sees its
+# internal `import optparse` (and others), so it never bundles them either
+# — breaking yt-dlp on a fresh install, before any update was ever
+# attempted. Bundling it normally, and instead letting the vendor
+# directory take priority on sys.path at runtime (see
+# services.ytdlp_updater.bootstrap, called at the top of main.py), gives
+# the same self-update capability without that trap. See
+# docs/YT_DLP_UPDATER.md for the full explanation.
 libs = [
     'PySide6',
     'PIL',              # Pillow
@@ -43,6 +32,7 @@ libs = [
     'psutil',
     'pandas',
     'matplotlib',
+    'yt_dlp',
     'mutagen',
     'pypdf'
 ]
@@ -76,12 +66,7 @@ a = Analysis(
         ('ui', 'ui'),
         ('database', 'database'),
         ('core', 'core'),
-        ('services', 'services'),
-        # Raw, uncompiled seed copy of yt-dlp — NOT collected as code, so
-        # it's found by services.ytdlp_updater on first run via plain
-        # filesystem access under sys._MEIPASS, and copied into the
-        # writable, updatable vendor directory. See docs/YT_DLP_UPDATER.md.
-        (YTDLP_SEED_DIR, os.path.join('ytdlp_seed', 'yt_dlp')),
+        ('services', 'services')
     ],
     hiddenimports=hidden_imports,
     hookspath=[],
@@ -89,8 +74,7 @@ a = Analysis(
     excludes=[
         'tkinter',  # unused, reduces size
         'pytest',
-        'unittest',
-        'yt_dlp',   # see the comment near the top of this file
+        'unittest'
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,

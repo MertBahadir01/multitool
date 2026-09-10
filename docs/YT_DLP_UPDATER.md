@@ -29,9 +29,18 @@ frozen in at build time.
     - macOS: `~/Library/Application Support/MultiTool Studio/ytdlp_vendor/yt_dlp`
     - Linux: `~/.local/share/MultiTool Studio/ytdlp_vendor/yt_dlp`
   - `bootstrap()`, called at the very top of `main.py` before anything
-    else is imported, makes sure `import yt_dlp` (anywhere in the app)
-    resolves to that vendor copy if one exists, falling back transparently
-    to whatever's bundled in the .exe if not.
+    else is imported, prepends that folder to `sys.path`. If it contains
+    an updated copy, `import yt_dlp` (anywhere in the app, including
+    submodule imports like `yt_dlp.utils`) resolves to it in preference to
+    the copy PyInstaller bundled into the .exe. If nothing has been
+    installed there yet, this is a no-op and the app just uses the
+    normally bundled copy — a fresh install works immediately, offline,
+    with no update required.
+  - It also sanity-checks the vendor copy right there at startup: if a
+    previous update somehow left a broken copy behind, that failure is
+    caught, the vendor copy is disabled *for this run only*, and the app
+    falls back to the bundled copy instead of failing to start. Nothing on
+    disk is deleted, so a later "Update yt-dlp" click can still repair it.
   - **"Update yt-dlp"** (button in the YouTube Downloader tab) asks PyPI's
     JSON API for the latest version, compares it to what's currently
     installed, and — only if newer — downloads that version's wheel to a
@@ -43,41 +52,39 @@ frozen in at build time.
     already-imported `yt_dlp` module in the running process is left alone,
     since replacing code backing a module that a download might currently
     be using is not safe to do live.
+  - Every meaningful step writes a line to
+    `<app data dir>/ytdlp_update.log` (see paths above). The app itself
+    runs with `console=False`, so this log is the only way to see what
+    happened if something goes wrong on a user's machine.
 
 - **`tools/youtube_downloader/ytdlp_update_worker.py`** is a thin `QThread`
   wrapper so the button never blocks the UI on network I/O.
 
 - **`tools/youtube_downloader/youtube_downloader_tool.py`** shows the
   current version, the button, and progress/result dialogs. If yt-dlp
-  turns out to be completely unavailable (see the build step below), it
-  falls back to a minimal "yt-dlp engine not found — Download yt-dlp"
-  screen instead of the tool silently disappearing from the app.
+  somehow can't be imported at all, it falls back to a minimal "yt-dlp
+  engine not found — Download yt-dlp" screen instead of the tool silently
+  disappearing from the app.
 
-## Required build step — read this before running PyInstaller
+## The one rule for `build.spec`
 
-`build.spec` deliberately **excludes** `yt_dlp` from PyInstaller's
-`Analysis`. If it weren't excluded, PyInstaller would compile yt-dlp's code
-into its own internal frozen-module archive, and *that* copy would always
-win over the vendor copy on `sys.path` for submodule imports (e.g.
-`yt_dlp.utils`) — silently defeating the whole updater. Excluding it means
-the .exe genuinely has no yt-dlp code of its own; it only ever runs the
-version sitting in the vendor folder.
+**`yt_dlp` must stay bundled normally** — it's just another entry in
+`build.spec`'s `libs` list, exactly like `requests` or `mutagen`. Do **not**
+add it to `excludes` or try to ship a separate "seed" copy as raw data
+instead. That was tried and reverted: PyInstaller only detects a module's
+own dependencies by scanning its real source as part of bundling it.
+Exclude `yt_dlp` and PyInstaller never sees its internal
+`import optparse` (and a handful of others) and never bundles them either
+— so a fresh install breaks immediately, before any update was ever
+attempted, even though "Update yt-dlp" itself reports success (it really
+did download and install yt-dlp's own files correctly — the missing piece
+was a stdlib module yt-dlp needs that was never bundled in the first
+place).
 
-That means a **seed copy** has to ship with the .exe instead, as plain
-data files, so a fresh install works immediately, offline, before the user
-ever clicks Update. Before building:
-
-```bash
-python scripts/prepare_ytdlp_seed.py     # copies your installed yt-dlp into resources/ytdlp_seed/
-pyinstaller build.spec
-```
-
-`build.spec` will refuse to build (with a clear error message) if you skip
-the seed step — better to catch that at build time than ship a broken .exe.
-You only need to re-run `prepare_ytdlp_seed.py` if you want to bump the
-*starting* version that fresh installs get; "Update yt-dlp" inside the app
-fetches newer releases at runtime regardless, independent of what was
-seeded at build time.
+Bundling `yt_dlp` normally and letting `sys.path` priority (see
+`bootstrap()` above) do the work instead gives the same self-update
+capability without that trap — confirmed by building and running an
+actual frozen PyInstaller executable with this exact setup.
 
 ## Everything else is unchanged
 

@@ -53,8 +53,10 @@ import shutil
 import sys
 import tempfile
 import time
+import traceback
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -65,6 +67,29 @@ PYPI_PROJECT_URL = "https://pypi.org/pypi/yt-dlp/json"
 REQUEST_TIMEOUT = 15          # seconds, per HTTP request
 DOWNLOAD_CHUNK_SIZE = 1 << 16  # 64 KiB
 MIN_VALID_WHEEL_BYTES = 200_000  # sanity floor — a real yt-dlp wheel is several MB
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics — the app is built with console=False, so without this,
+# a silent failure (e.g. a seeding step that fails and is intentionally
+# swallowed so it doesn't take down the whole app) is completely invisible.
+# Every meaningful step below writes one line here.
+# ---------------------------------------------------------------------------
+
+def _log_path() -> Path:
+    return get_app_data_dir() / "ytdlp_update.log"
+
+
+def _log(message: str) -> None:
+    try:
+        with open(_log_path(), "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now(timezone.utc).isoformat(timespec='seconds')}] {message}\n")
+    except OSError:
+        pass  # logging must never be the reason something else breaks
+
+
+def _log_exception(context: str, exc: BaseException) -> None:
+    _log(f"{context}: {exc!r}\n{traceback.format_exc()}")
 
 
 # ---------------------------------------------------------------------------
@@ -124,54 +149,6 @@ def get_vendor_package_dir() -> Path:
     return get_vendor_dir() / "yt_dlp"
 
 
-def _bundled_seed_dir() -> Optional[Path]:
-    """Location of the read-only "seed" copy of yt_dlp shipped alongside
-    the app, used to populate the vendor dir on first run so the app works
-    offline immediately after install. Looked up both in a frozen
-    PyInstaller build (``sys._MEIPASS``) and in normal dev-mode runs.
-    Returns None if no seed was bundled — that's fine, the app just falls
-    back to whatever yt_dlp is importable normally until the user runs
-    Update yt-dlp for the first time (which needs internet, same as the
-    downloader itself already does)."""
-    candidates = []
-    meipass = getattr(sys, "_MEIPASS", None)
-    if meipass:
-        candidates.append(Path(meipass) / "ytdlp_seed" / "yt_dlp")
-    if getattr(sys, "frozen", False):
-        candidates.append(Path(sys.executable).parent / "ytdlp_seed" / "yt_dlp")
-    project_root = Path(__file__).resolve().parent.parent
-    candidates.append(project_root / "resources" / "ytdlp_seed" / "yt_dlp")
-
-    for candidate in candidates:
-        if (candidate / "version.py").is_file():
-            return candidate
-    return None
-
-
-def _seed_vendor_dir_if_empty() -> None:
-    """First-run convenience: if the vendor dir has no yt_dlp copy yet but
-    the app ships a seed copy, install the seed so the app is fully
-    functional offline before the user ever clicks Update."""
-    target = get_vendor_package_dir()
-    if (target / "version.py").is_file():
-        return
-    seed = _bundled_seed_dir()
-    if seed is None:
-        return
-    try:
-        tmp_target = target.with_name(target.name + f".seeding-{os.getpid()}")
-        if tmp_target.exists():
-            shutil.rmtree(tmp_target, ignore_errors=True)
-        shutil.copytree(seed, tmp_target)
-        if target.exists():
-            shutil.rmtree(target, ignore_errors=True)
-        os.replace(tmp_target, target)
-    except OSError:
-        # Non-fatal: worst case, the app falls back to whatever yt_dlp the
-        # interpreter/PyInstaller build resolves normally.
-        pass
-
-
 # ---------------------------------------------------------------------------
 # Bootstrap — must run before ANYTHING does `import yt_dlp`
 # ---------------------------------------------------------------------------
@@ -180,54 +157,66 @@ def bootstrap() -> None:
     """Call once, at the very top of main.py, before any module that might
     import yt_dlp (directly or indirectly) is imported.
 
-    Two layers, for robustness:
+    This inserts the vendor directory at the front of ``sys.path``, so the
+    standard import machinery finds an updated copy there before it finds
+    the copy PyInstaller bundled into the .exe at build time (confirmed
+    empirically: CPython's normal path-based finder is consulted before
+    PyInstaller's frozen-module importer gets a chance to claim the name,
+    both for the top-level ``yt_dlp`` package and for its submodules, e.g.
+    ``yt_dlp.utils``). If nothing has been installed to the vendor
+    directory yet, this is a no-op and the app simply uses whatever
+    yt-dlp PyInstaller bundled normally — which is why yt_dlp must NOT be
+    excluded from the PyInstaller build (see docs/YT_DLP_UPDATER.md): if
+    it were excluded, none of yt-dlp's own dependencies (stdlib modules
+    like ``optparse``, third-party ones it uses conditionally) would ever
+    get detected and bundled either, breaking it even on a fresh install
+    with no update ever applied.
 
-    1. The vendor dir is inserted at the front of ``sys.path``. In a normal
-       (non-frozen) run, and in a frozen build that excludes yt_dlp from
-       PyInstaller's Analysis (see docs/YT_DLP_UPDATER.md), this alone is
-       sufficient — the standard import machinery will find the vendor
-       copy first.
-
-    2. As a defense-in-depth fallback for a frozen build that was *not*
-       configured to exclude yt_dlp (e.g. someone just ran
-       ``pyinstaller main.py`` without the provided spec file), we also
-       pre-register the vendor package directly in ``sys.modules`` if one
-       exists. Python checks ``sys.modules`` before consulting any
-       importer, so this guarantees ``import yt_dlp`` resolves to the
-       vendor copy even if PyInstaller's own frozen importer would
-       otherwise have intercepted it first. This is a safety net, not a
-       replacement for the recommended build configuration.
+    As a safety net, the vendor copy is sanity-imported right here, before
+    the rest of the app starts. If a previous update left behind a broken
+    copy (corrupted files, a dependency that genuinely isn't available),
+    that failure is caught, the vendor copy is disabled for this run only,
+    and the app falls back to the normally bundled yt-dlp instead of
+    crashing on startup. Nothing on disk is deleted — a working "Update
+    yt-dlp" click can still repair it later.
     """
-    _seed_vendor_dir_if_empty()
+    vendor_dir = get_vendor_dir()
+    vendor_path_str = str(vendor_dir)
+    pkg_init = get_vendor_package_dir() / "__init__.py"
 
-    vendor_dir = str(get_vendor_dir())
-    if vendor_dir not in sys.path:
-        sys.path.insert(0, vendor_dir)
+    if not pkg_init.is_file():
+        return  # nothing installed yet — normal resolution finds the bundled copy
+
+    if vendor_path_str not in sys.path:
+        sys.path.insert(0, vendor_path_str)
 
     if "yt_dlp" in sys.modules:
-        return  # something already imported it this process; too late to swap
-
-    vendor_pkg = get_vendor_package_dir()
-    init_file = vendor_pkg / "__init__.py"
-    if not init_file.is_file():
-        return  # nothing installed yet — normal import resolution will do
+        return  # something already imported it this process; too late to change
 
     try:
-        import importlib.util
+        import yt_dlp  # noqa: F401
+        import yt_dlp.version  # noqa: F401
+        _log(f"bootstrap: using vendor yt-dlp v{get_installed_version()} from {vendor_path_str}")
+    except Exception as e:
+        _log_exception(f"bootstrap: vendor copy at {vendor_path_str} failed to import, disabling it for this run", e)
+        _purge_yt_dlp_from_sys_modules()
+        try:
+            sys.path.remove(vendor_path_str)
+        except ValueError:
+            pass
+        # One retry so a working, normally-bundled fallback copy (if any)
+        # gets imported cleanly instead of leaving a half-failed state.
+        try:
+            import yt_dlp  # noqa: F401
+            _log("bootstrap: fell back to the bundled yt-dlp copy successfully")
+        except Exception as e2:
+            _log_exception("bootstrap: bundled yt-dlp is also unavailable", e2)
 
-        spec = importlib.util.spec_from_file_location(
-            "yt_dlp", str(init_file), submodule_search_locations=[str(vendor_pkg)]
-        )
-        if spec is None or spec.loader is None:
-            return
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["yt_dlp"] = module
-        spec.loader.exec_module(module)
-    except Exception:
-        # Corrupt/incompatible vendor copy — don't take the app down over
-        # an update gone wrong. Undo the partial registration and let
-        # normal import resolution (i.e. the bundled fallback) take over.
-        sys.modules.pop("yt_dlp", None)
+
+def _purge_yt_dlp_from_sys_modules() -> None:
+    for name in list(sys.modules):
+        if name == "yt_dlp" or name.startswith("yt_dlp."):
+            sys.modules.pop(name, None)
 
 
 # ---------------------------------------------------------------------------
@@ -478,6 +467,10 @@ def download_and_install(
         new_pkg_dir = _extract_package(wheel_path, extract_dir, expected_version)
 
         _atomic_swap(new_pkg_dir)
+        _log(f"download_and_install: succeeded, now at v{expected_version}")
         return expected_version
+    except UpdaterError as e:
+        _log(f"download_and_install: failed — {e}")
+        raise
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
